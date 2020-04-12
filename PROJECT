@@ -1,3 +1,7 @@
 domain: streamotion.com.au
 repo: hpa-tuner
+resources:
+- group: webapp
+  kind: HpaTuner
+  version: v1
 version: "2"

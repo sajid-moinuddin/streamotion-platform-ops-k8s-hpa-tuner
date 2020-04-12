@@ -1,0 +1,7 @@
+apiVersion: webapp.streamotion.com.au/v1
+kind: HpaTuner
+metadata:
+  name: hpatuner-sample
+spec:
+  # Add fields here
+  foo: bar
