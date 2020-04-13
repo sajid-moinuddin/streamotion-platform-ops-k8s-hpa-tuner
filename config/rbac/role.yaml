@@ -6,6 +6,18 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
+- resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+- resources:
+  - pods
+  verbs:
+  - get
+  - list
 - apiGroups:
   - webapp.streamotion.com.au
   resources:
