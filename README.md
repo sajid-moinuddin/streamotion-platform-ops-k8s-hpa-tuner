@@ -9,3 +9,19 @@ Also ideas borrowed from:
 https://github.com/postmates/configurable-hpa 
 
 (instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for min Pods as we go)
+
+
+
+#NOTES as I go:
+
+start: 
+
+
+```
+
+./setup.sh
+
+#new terminal
+kubectl apply -f config/samples/
+```
+
