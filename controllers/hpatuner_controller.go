@@ -36,6 +36,8 @@ type HpaTunerReconciler struct {
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=,resources=deployments,verbs=get;list;update;patch
+// +kubebuilder:rbac:groups=,resources=pods,verbs=get;list
 
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
