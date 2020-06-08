@@ -1,3 +1,4 @@
+export KUBECONFIG=~/.kube/config
 kind delete cluster
 kind create cluster --config kind-cluster-1.14.10.yaml
 kind get clusters 

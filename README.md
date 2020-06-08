@@ -14,11 +14,21 @@ https://github.com/postmates/configurable-hpa
 
 #NOTES as I go:
 
-start: 
-
+start cluster:
 
 ```
+> cd kind 
+> build-cluster.sh
+```
 
+deploy the k8s deployment/services/hpa etc:
+```
+> cd phpload
+> ./init.sh
+> ./run_load.sh
+```
+
+```
 ./setup.sh
 
 #new terminal

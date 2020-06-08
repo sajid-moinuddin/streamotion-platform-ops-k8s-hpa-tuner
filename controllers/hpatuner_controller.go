@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"log"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,15 +37,22 @@ type HpaTunerReconciler struct {
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=,resources=deployments,verbs=get;list;update;patch
-// +kubebuilder:rbac:groups=,resources=pods,verbs=get;list
+// +kubebuilder:rbac:groups=,resources=deployments,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=,resources=horizontalpodautoscalers,verbs=get;list;watch
 
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("hpatuner", req.NamespacedName)
 
+	log.Printf("s----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
+	log.Printf("")
+	log.Printf("****Reconcile request: %v\n", req)
+
 	// your logic here
 
+	log.Printf("") // to have clear separation between previous and current reconcile run
+	log.Printf("----------------------------------------------------------------------------------------------------")
 	return ctrl.Result{}, nil
 }
 

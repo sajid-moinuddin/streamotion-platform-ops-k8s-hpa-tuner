@@ -13,11 +13,19 @@ rules:
   - list
   - patch
   - update
+  - watch
+- resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
 - resources:
   - pods
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - webapp.streamotion.com.au
   resources:
