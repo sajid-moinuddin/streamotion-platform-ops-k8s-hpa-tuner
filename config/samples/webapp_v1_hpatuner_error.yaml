@@ -1,13 +1,13 @@
 apiVersion: webapp.streamotion.com.au/v1
 kind: HpaTuner
 metadata:
-  name: php-apache-tuner
+  name: php-apache-tuner-error
 spec:
   downscaleForbiddenWindowSeconds: 600
   upscaleForbiddenWindowSeconds: 5
   scaleTargetRef:
     kind: HorizontalPodAutoscaler
-    name: php-apache
+    name: php-apache-error
   minReplicas: 2
   maxReplicas: 1000
   metrics:
