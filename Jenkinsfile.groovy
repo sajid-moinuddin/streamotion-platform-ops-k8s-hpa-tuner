@@ -1,6 +1,6 @@
 pipeline {
   agent {
-    label "ecr-publisher"
+      label "streamotion-maven"
   }
 
   environment {
@@ -11,7 +11,7 @@ pipeline {
   stages {
     stage('Push To ECR') {
       steps {
-        container('nodejs') {
+        container('maven') {
 
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
