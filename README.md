@@ -11,6 +11,9 @@ The project scaffold is generated from : https://book.kubebuilder.io/
 Also ideas borrowed from:
 https://github.com/postmates/configurable-hpa 
 
+This will leverage https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service to actually make the decision to scale (writing code in GO is too much pain!)
+
+
 
 # How to start
 How to start in command line and in IDE.
