@@ -3,8 +3,7 @@ kind: HpaTuner
 metadata:
   name: php-apache-tuner
 spec:
-  downscaleForbiddenWindowSeconds: 600
-  upscaleForbiddenWindowSeconds: 5
+  downscaleForbiddenWindowSeconds: 60
   scaleTargetRef:
     kind: HorizontalPodAutoscaler
     name: php-apache

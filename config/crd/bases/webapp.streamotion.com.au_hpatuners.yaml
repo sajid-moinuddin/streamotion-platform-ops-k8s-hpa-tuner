@@ -376,6 +376,15 @@ spec:
           type: object
         status:
           description: HpaTunerStatus defines the observed state of HpaTuner
+          properties:
+            lastDownScaleTime:
+              description: Last time a scale-down event was observed
+              format: date-time
+              type: string
+            lastUpScaleTime:
+              description: Last time a scaleup event was observed
+              format: date-time
+              type: string
           type: object
       type: object
   version: v1

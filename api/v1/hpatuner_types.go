@@ -53,7 +53,7 @@ type HpaTunerSpec struct {
 	Metrics []autoscalingv2.MetricSpec `json:"metrics,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
-	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	MinReplicas int32 `json:"minReplicas,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
 	MaxReplicas int32 `json:"maxReplicas"`
@@ -72,8 +72,10 @@ type CrossVersionObjectReference struct {
 
 // HpaTunerStatus defines the observed state of HpaTuner
 type HpaTunerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Last time a scaleup event was observed
+	LastUpScaleTime *metav1.Time `json:"lastUpScaleTime,omitempty"`
+	// Last time a scale-down event was observed
+	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true

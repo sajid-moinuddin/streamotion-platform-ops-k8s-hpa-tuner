@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"time"
@@ -86,11 +87,11 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// on deleted requests.
 		return resStop, client.IgnoreNotFound(err)
 	}
-	log.Printf("##: fetched %v \n", hpaTuner)
+	log.Printf("##: fetched %v \n", req.NamespacedName)
 
-	hpaRef := hpaTuner.Spec.ScaleTargetRef
+	//hpaRef := hpaTuner.Spec.ScaleTargetRef
 
-	log.Printf("hparef: %v \n", hpaRef)
+	//log.Printf("hparef: %v \n", hpaRef)
 
 	//TODO: check validity of hpaTuner
 
@@ -105,15 +106,14 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return resRepeat, nil
 	}
 
-	log.Printf("*Read HPA: %v", hpa)
+	log.Printf("*Read HPA: %v", hpaNamespacedName)
 
 	// --------------- now lets do reconcile.....
 	if err := r.ReconcileHPA(&hpaTuner, hpa); err != nil {
 		rlog.Error(err, "Could Not ReConcile")
+		r.eventRecorder.Event(&hpaTuner, v1.EventTypeWarning, "FailedProcessHpaTuner", err.Error())
 
 		return resStop, nil
-	} else {
-		r.eventRecorder.Event(&hpaTuner, v1.EventTypeWarning, "FailedProcessHpaTuner", "This is a sample error")
 	}
 	// -----------------------------------------------------------------------------------
 	log.Printf("") // to have clear separation between previous and current reconcile run
@@ -128,9 +128,78 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // HpaTunerReconciler reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
-	log.Printf("--trying to reconcile..")
+	log.Printf("--trying to reconcile..hpa: %v", toString(hpa))
+
+	//??scaleUp??
+	if shouldScale(hpaTuner, hpa) {
+		scaleTarget := scaleTo(hpaTuner, hpa)
+		log.Printf("*** I am going to lock the hpa min now... %v", scaleTarget)
+
+		r.UpdateHpaMin(hpa)
+
+		//r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
+	} else if isInScaledState(hpaTuner, hpa) {
+		log.Printf("HPA IS IN SCALED MODE!!!")
+		if isMinLocked(hpaTuner, hpa) {
+			log.Printf("HPA Min is Locked!!!")
+			if shouldUnlockMin(hpaTuner, hpa) {
+				log.Printf("Need to UnlockMin")
+			} else {
+				log.Printf("")
+			}
+		}
+	} else {
+		log.Printf("Nothing to do...")
+	}
 
 	return nil
+}
+
+func (r *HpaTunerReconciler) UpdateHpaMin(hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
+
+	return nil
+}
+
+func shouldScale(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	var scaleTarget = scaleTo(tuner, hpa)
+	if scaleTarget > *hpa.Spec.MinReplicas {
+		return true
+	} else {
+		return false
+	}
+}
+
+func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
+	return fmt.Sprintf("n: %v, pod: %v/%v, cpu: %v/%v last:%v",
+		hpa.Name,
+		*hpa.Spec.MinReplicas,
+		hpa.Status.DesiredReplicas,
+		*hpa.Spec.TargetCPUUtilizationPercentage,
+		*hpa.Status.CurrentCPUUtilizationPercentage,
+		time.Since(hpa.Status.LastScaleTime.Time))
+}
+
+func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
+	//I got control of the scale decision now!
+	return hpa.Status.DesiredReplicas
+}
+
+func shouldUnlockMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
+	log.Printf("-----: allowed scaledown: %v", hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow))
+	if hpa.Status.LastScaleTime != nil && hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow).Before(time.Now()) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func isMinLocked(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	return *hpa.Spec.MinReplicas > tuner.Spec.MinReplicas
+}
+
+func isInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	return hpaTuner.Spec.MinReplicas < hpa.Status.DesiredReplicas
 }
 
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
