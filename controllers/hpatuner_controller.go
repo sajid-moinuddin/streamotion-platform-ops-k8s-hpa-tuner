@@ -18,18 +18,20 @@ package controllers
 
 import (
 	"context"
+	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"time"
 
 	webappv1 "hpa-tuner/api/v1"
 
 	"github.com/go-logr/logr"
-	v1 "k8s.io/api/autoscaling/v1"
+	"github.com/golang/glog"
+	scaleV1 "k8s.io/api/autoscaling/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	// "k8s.io/client-go/deprecated/scheme"
-
+	"k8s.io/client-go/kubernetes"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,6 +54,7 @@ type HpaTunerReconciler struct {
 	Log           logr.Logger
 	Scheme        *runtime.Scheme
 	eventRecorder record.EventRecorder
+	clientSet     kubernetes.Interface
 	syncPeriod    time.Duration
 }
 
@@ -95,7 +98,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	hpaName := hpaTuner.Spec.ScaleTargetRef.Name
 	hpaNamespacedName := types.NamespacedName{Namespace: hpaNamespace, Name: hpaName}
 
-	hpa := &v1.HorizontalPodAutoscaler{}
+	hpa := &scaleV1.HorizontalPodAutoscaler{}
 	if err := r.Get(ctx, hpaNamespacedName, hpa); err != nil {
 		// Error reading the object, repeat later
 		rlog.Error(err, "Error reading HPA: ", "hpa", hpaNamespacedName)
@@ -107,7 +110,10 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// --------------- now lets do reconcile.....
 	if err := r.ReconcileHPA(&hpaTuner, hpa); err != nil {
 		rlog.Error(err, "Could Not ReConcile")
+
 		return resStop, nil
+	} else {
+		r.eventRecorder.Event(&hpaTuner, v1.EventTypeWarning, "FailedProcessHpaTuner", "This is a sample error")
 	}
 	// -----------------------------------------------------------------------------------
 	log.Printf("") // to have clear separation between previous and current reconcile run
@@ -121,7 +127,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // HpaTunerReconciler reconciles a HpaTuner object
-func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *v1.HorizontalPodAutoscaler) (err error) {
+func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log.Printf("--trying to reconcile..")
 
 	return nil
@@ -129,14 +135,21 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *v1.H
 
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
-	// clientConfig := mgr.GetConfig()
-	// clientSet, err := kubernetes.NewForConfig(clientConfig)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	clientConfig := mgr.GetConfig()
+	clientSet, err := kubernetes.NewForConfig(clientConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	evtNamespacer := clientSet.CoreV1()
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartLogging(glog.Infof)
+	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: evtNamespacer.Events("")})
+	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "hpa-tuner"})
 
 	r.syncPeriod = defaultSyncPeriod
-	// r.eventRecorder = mgr.GetEventRecorder()
+	r.clientSet = clientSet
+	r.eventRecorder = recorder
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.HpaTuner{}).
