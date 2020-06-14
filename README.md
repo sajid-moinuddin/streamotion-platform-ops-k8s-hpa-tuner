@@ -75,35 +75,4 @@ What important business logic, workflows or calculations this application does? 
 Bedrock: https://foxsportsau.atlassian.net/wiki/spaces/DEV/pages/734004070/Java+Bedrocks
 
 
-
-
-
-
 (instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for min Pods as we go)
-
-
-
-
-#NOTES as I go:
-
-start cluster:
-
-```
-> cd kind 
-> build-cluster.sh
-```
-
-deploy the k8s deployment/services/hpa etc:
-```
-> cd phpload
-> ./init.sh
-> ./run_load.sh
-```
-
-```
-./setup.sh
-
-#new terminal
-kubectl apply -f config/samples/
-```
-

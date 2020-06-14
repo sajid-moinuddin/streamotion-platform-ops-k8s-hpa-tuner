@@ -1,0 +1,15 @@
+apiVersion: skaffold/v1beta11
+kind: Config
+build:
+  artifacts:
+  - image: streamotion-platform-ops-k8s-hpa-tuner # Please do not edit this line! Managed by customize.sh
+    context: .
+    docker:
+      network: host
+  tagPolicy:
+    envTemplate:
+      template: '{{.DOCKER_REGISTRY}}/fsa-streamotion/streamotion-platform-ops-k8s-hpa-tuner:{{.VERSION}}' # Please do not edit this line! Managed by customize.sh
+  local: {}
+deploy:
+  kubectl: {}  
+
