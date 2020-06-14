@@ -24,15 +24,28 @@ How to start in command line and in IDE.
 
 2. Deploy some sample k8s resource
 
+
 ```
     cd phpload
-    ./init.sh
+    ./init.sh #this builds a sample docker image and registers it with your kind cluster along with a deployment and a horizontal-pod-autoscaler that you can now test
 ```
 
 3. Run your controller
 ```
     cd $PROJECT_DIR
     ./setup.sh
+```
+
+4. Deploy a sample HpaTuner Resource
+
+```
+    kubectl apply -f config/samples/webapp_v1_hpatuner.yaml
+```
+
+5. Generate some load:
+```
+    cd phpload
+    ./run_load.sh 
 ```
 
 TBD: GO setup in visual-studio-code details / links: What IDE configurations required (e.g. AWS credentials, Maven settings.xml, etc.)?
