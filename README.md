@@ -13,7 +13,7 @@ https://github.com/postmates/configurable-hpa
 
 This will leverage https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service to actually make the decision to scale (writing code in GO is too much pain!)
 
-
+Jenkins Build: http://jenkins.web.dev.cluster.foxsports-gitops-prod.com.au/job/fsa-streamotion/job/streamotion-platform-ops-k8s-hpa-tuner/job/master/ 
 
 # How to start
 How to start in command line and in IDE.

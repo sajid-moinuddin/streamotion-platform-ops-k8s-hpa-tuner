@@ -21,15 +21,19 @@ import (
 	"log"
 	"time"
 
+	webappv1 "hpa-tuner/api/v1"
+
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	// "k8s.io/client-go/deprecated/scheme"
+
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	webappv1 "hpa-tuner/api/v1"
 )
 
 const (
@@ -45,10 +49,10 @@ const (
 // HpaTunerReconciler reconciles a HpaTuner object
 type HpaTunerReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
-
-	syncPeriod time.Duration
+	Log           logr.Logger
+	Scheme        *runtime.Scheme
+	eventRecorder record.EventRecorder
+	syncPeriod    time.Duration
 }
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
@@ -87,7 +91,6 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	//TODO: check validity of hpaTuner
 
-	// kind := chpa.Spec.ScaleTargetRef.Kind
 	hpaNamespace := hpaTuner.Namespace
 	hpaName := hpaTuner.Spec.ScaleTargetRef.Name
 	hpaNamespacedName := types.NamespacedName{Namespace: hpaNamespace, Name: hpaName}
@@ -101,6 +104,11 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Printf("*Read HPA: %v", hpa)
 
+	// --------------- now lets do reconcile.....
+	if err := r.ReconcileHPA(&hpaTuner, hpa); err != nil {
+		rlog.Error(err, "Could Not ReConcile")
+		return resStop, nil
+	}
 	// -----------------------------------------------------------------------------------
 	log.Printf("") // to have clear separation between previous and current reconcile run
 	log.Printf("--end: ----------------------------------------------------------------------------------------------------")
@@ -112,9 +120,23 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return resRepeat, nil
 }
 
+// HpaTunerReconciler reconciles a HpaTuner object
+func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *v1.HorizontalPodAutoscaler) (err error) {
+	log.Printf("--trying to reconcile..")
+
+	return nil
+}
+
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
+	// clientConfig := mgr.GetConfig()
+	// clientSet, err := kubernetes.NewForConfig(clientConfig)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
 	r.syncPeriod = defaultSyncPeriod
+	// r.eventRecorder = mgr.GetEventRecorder()
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.HpaTuner{}).
