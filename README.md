@@ -70,11 +70,21 @@ Bedrock: https://foxsportsau.atlassian.net/wiki/spaces/DEV/pages/734004070/Java+
 
 #NOTES as I go:
 
-start: 
-
+start cluster:
 
 ```
+> cd kind 
+> build-cluster.sh
+```
 
+deploy the k8s deployment/services/hpa etc:
+```
+> cd phpload
+> ./init.sh
+> ./run_load.sh
+```
+
+```
 ./setup.sh
 
 #new terminal
