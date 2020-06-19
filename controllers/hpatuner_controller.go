@@ -19,16 +19,17 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"time"
 
-	webappv1 "hpa-tuner/api/v1"
+	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/go-logr/logr"
 	"github.com/golang/glog"
+	webappv1 "hpa-tuner/api/v1"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -129,13 +130,13 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 // HpaTunerReconciler reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log.Printf("--trying to reconcile..hpa: %v", toString(hpa))
+	//MUST READ: https://engineering.pivotal.io/post/gp4k-kubebuilder-lessons/
 
 	//??scaleUp??
-	if shouldScale(hpaTuner, hpa) {
-		scaleTarget := scaleTo(hpaTuner, hpa)
+	scaleTarget := scaleTo(hpaTuner, hpa)
+	if scaleTarget > *hpa.Spec.MinReplicas {
 		log.Printf("*** I am going to lock the hpa min now... %v", scaleTarget)
-
-		r.UpdateHpaMin(hpa)
+		r.UpdateHpaMin(hpaTuner, hpa, scaleTarget)
 
 		//r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
 	} else if isInScaledState(hpaTuner, hpa) {
@@ -144,8 +145,9 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 			log.Printf("HPA Min is Locked!!!")
 			if shouldUnlockMin(hpaTuner, hpa) {
 				log.Printf("Need to UnlockMin")
+				r.UpdateHpaMin(hpaTuner, hpa, hpaTuner.Spec.MinReplicas)
 			} else {
-				log.Printf("")
+				log.Printf("----hpa locked but scaledown condition not met")
 			}
 		}
 	} else {
@@ -155,28 +157,45 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 	return nil
 }
 
-func (r *HpaTunerReconciler) UpdateHpaMin(hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
+func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, scaleTarget int32) (err error) {
+	r.Log.Info("UpdateHpaMin: ", "scaleTarget", scaleTarget)
+	hpa.Spec.MinReplicas = &scaleTarget
+	if err := r.Client.Update(context.TODO(), hpa); err != nil {
+		r.Log.Error(err, "Failed to Update hpa Min", "scaleTarget", scaleTarget)
+	}
+
+	hpaTuner.Status.LastUpScaleTime = &metav1.Time{}
+	hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
+
+	r.Client.Update(context.TODO(), hpaTuner)
 
 	return nil
 }
 
-func shouldScale(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
-	var scaleTarget = scaleTo(tuner, hpa)
-	if scaleTarget > *hpa.Spec.MinReplicas {
-		return true
-	} else {
-		return false
-	}
-}
-
 func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
+	var lastScaleTime string
+
+	if hpa.Status.LastScaleTime != nil {
+		lastScaleTime = string(time.Since(hpa.Status.LastScaleTime.Time))
+	} else {
+		lastScaleTime = "NA"
+	}
+
+	var currCPU int32
+
+	if hpa.Status.CurrentCPUUtilizationPercentage != nil {
+		currCPU = *hpa.Status.CurrentCPUUtilizationPercentage
+	} else {
+		currCPU = 0
+	}
+
 	return fmt.Sprintf("n: %v, pod: %v/%v, cpu: %v/%v last:%v",
 		hpa.Name,
 		*hpa.Spec.MinReplicas,
 		hpa.Status.DesiredReplicas,
+		currCPU,
 		*hpa.Spec.TargetCPUUtilizationPercentage,
-		*hpa.Status.CurrentCPUUtilizationPercentage,
-		time.Since(hpa.Status.LastScaleTime.Time))
+		lastScaleTime)
 }
 
 func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
@@ -187,11 +206,26 @@ func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int
 func shouldUnlockMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
 	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
 	log.Printf("-----: allowed scaledown: %v", hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow))
-	if hpa.Status.LastScaleTime != nil && hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow).Before(time.Now()) {
-		return true
-	} else {
-		return false
+
+	if elapsedDownscaleForbiddenWindow(hpa, downscaleForbiddenWindow) {
+		if isIdle(hpa) {
+			return true
+		}
 	}
+
+	return false
+}
+
+func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	if *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
+		return true
+	}
+
+	return false
+}
+
+func elapsedDownscaleForbiddenWindow(hpa *scaleV1.HorizontalPodAutoscaler, downscaleForbiddenWindow time.Duration) bool {
+	return hpa.Status.LastScaleTime != nil && hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
 }
 
 func isMinLocked(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {

@@ -7,7 +7,7 @@ spec:
   scaleTargetRef:
     kind: HorizontalPodAutoscaler
     name: php-apache
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 1000
   metrics:
   - type: Resource
