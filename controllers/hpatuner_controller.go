@@ -60,6 +60,21 @@ type HpaTunerReconciler struct {
 	syncPeriod    time.Duration
 }
 
+//// HpaTunerStatus defines the observed state of HpaTuner
+//type HpaTunerStatus struct {
+//	// Last time a scaleup event was observed
+//	LastUpScaleTime *metav1.Time `json:"lastUpScaleTime,omitempty"`
+//	// Last time a scale-down event was observed
+//	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
+//}
+type DecisionServiceDecision struct {
+	Decision *Decision `json:"decision,omitempty"`
+}
+
+type Decision struct {
+	Number int32 `json:"number"`
+}
+
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=,resources=deployments,verbs=get;list;watch;update;patch
@@ -68,31 +83,31 @@ type HpaTunerReconciler struct {
 
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	rlog := r.Log.WithValues("hpatuner", req.NamespacedName)
+	log := r.Log.WithValues("hpatuner", req.NamespacedName)
 
 	//hpatuner is a never ending forloop to keep on monitoring the hpa and action on it (until its deleted)
 	resRepeat := reconcile.Result{RequeueAfter: r.syncPeriod}
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
-	log.Printf("start: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
-	log.Printf("")
-	log.Printf("****Reconcile request: %v\n", req)
+	log.Info("start: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
+	log.Info("")
+	log.Info("****Reconcile request: %v\n", req)
 
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
 	if err := r.Get(ctx, req.NamespacedName, &hpaTuner); err != nil {
-		rlog.Error(err, "unable to fetch HpaTuner")
+		log.Error(err, "unable to fetch HpaTuner")
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
 		return resStop, client.IgnoreNotFound(err)
 	}
-	log.Printf("##: fetched %v \n", req.NamespacedName)
+	log.Info("##: fetched %v \n", req.NamespacedName)
 
 	//hpaRef := hpaTuner.Spec.ScaleTargetRef
 
-	//log.Printf("hparef: %v \n", hpaRef)
+	//log.Info("hparef: %v \n", hpaRef)
 
 	//TODO: check validity of hpaTuner
 
@@ -103,22 +118,22 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	hpa := &scaleV1.HorizontalPodAutoscaler{}
 	if err := r.Get(ctx, hpaNamespacedName, hpa); err != nil {
 		// Error reading the object, repeat later
-		rlog.Error(err, "Error reading HPA: ", "hpa", hpaNamespacedName)
+		log.Error(err, "Error reading HPA: ", "hpa", hpaNamespacedName)
 		return resRepeat, nil
 	}
 
-	log.Printf("*Read HPA: %v", hpaNamespacedName)
+	log.Info("*Read HPA: %v", hpaNamespacedName)
 
-	// --------------- now lets do reconcile.....
+	// --------------- ok so we got the hpa object & hpa-tuner object at hand, now lets do reconcile.....
 	if err := r.ReconcileHPA(&hpaTuner, hpa); err != nil {
-		rlog.Error(err, "Could Not ReConcile")
+		log.Error(err, "Could Not ReConcile")
 		r.eventRecorder.Event(&hpaTuner, v1.EventTypeWarning, "FailedProcessHpaTuner", err.Error())
 
 		return resStop, nil
 	}
 	// -----------------------------------------------------------------------------------
-	log.Printf("") // to have clear separation between previous and current reconcile run
-	log.Printf("--end: ----------------------------------------------------------------------------------------------------")
+	log.Info("") // to have clear separation between previous and current reconcile run
+	log.Info("--end: ----------------------------------------------------------------------------------------------------")
 
 	// resRepeat will be returned if we want to re-run reconcile process
 	// NB: we can't return non-nil err, as the "reconcile" msg will be added to the rate-limited queue
@@ -129,29 +144,30 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // HpaTunerReconciler reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
-	log.Printf("--trying to reconcile..hpa: %v", toString(hpa))
+	log := r.Log.WithValues("hpatuner", hpa.Namespace)
+	log.Info("--trying to reconcile..hpa: %v", toString(hpa))
 	//MUST READ: https://engineering.pivotal.io/post/gp4k-kubebuilder-lessons/
 
 	//??scaleUp??
 	scaleTarget := scaleTo(hpaTuner, hpa)
 	if scaleTarget > *hpa.Spec.MinReplicas {
-		log.Printf("*** I am going to lock the hpa min now... %v", scaleTarget)
+		log.Info("*** I am going to lock the hpa min now... %v", scaleTarget)
 		r.UpdateHpaMin(hpaTuner, hpa, scaleTarget)
 
 		//r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
 	} else if isInScaledState(hpaTuner, hpa) {
-		log.Printf("HPA IS IN SCALED MODE!!!")
-		if isMinLocked(hpaTuner, hpa) {
-			log.Printf("HPA Min is Locked!!!")
-			if shouldUnlockMin(hpaTuner, hpa) {
-				log.Printf("Need to UnlockMin")
+		log.Info("HPA IS IN SCALED MODE!!!")
+		if isHpaMinScaled(hpaTuner, hpa) {
+			log.Info("HPA Min is Locked!!!")
+			if shouldScaleDownHpaMin(hpaTuner, hpa) {
+				log.Info("Need to UnlockMin")
 				r.UpdateHpaMin(hpaTuner, hpa, hpaTuner.Spec.MinReplicas)
 			} else {
-				log.Printf("----hpa locked but scaledown condition not met")
+				log.Info("----hpa locked but scaledown condition not met")
 			}
 		}
 	} else {
-		log.Printf("Nothing to do...")
+		log.Info("Nothing to do...")
 	}
 
 	return nil
@@ -164,8 +180,8 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 		r.Log.Error(err, "Failed to Update hpa Min", "scaleTarget", scaleTarget)
 	}
 
-	hpaTuner.Status.LastUpScaleTime = &metav1.Time{}
-	hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
+	hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
+	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
 	r.Client.Update(context.TODO(), hpaTuner)
 
@@ -200,13 +216,28 @@ func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
 
 func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
 	//I got control of the scale decision now!
-	return hpa.Status.DesiredReplicas
+	desiredReplicas := hpa.Status.DesiredReplicas
+
+	desiredReplicaFromDecisionService := getDesiredReplicaFromDecisionService(hpa)
+
+	//no matter what decision service thinks, the higher number always wins
+	if desiredReplicaFromDecisionService < 0 || desiredReplicaFromDecisionService < desiredReplicas {
+		return desiredReplicas
+	} else {
+		desiredReplicas = desiredReplicaFromDecisionService
+	}
+
+	return desiredReplicas
 }
 
-func shouldUnlockMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
-	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
-	log.Printf("-----: allowed scaledown: %v", hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow))
+func getDesiredReplicaFromDecisionService(hpa *scaleV1.HorizontalPodAutoscaler) int32 {
+	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
 
+	return -1
+}
+
+func shouldScaleDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
 	if elapsedDownscaleForbiddenWindow(hpa, downscaleForbiddenWindow) {
 		if isIdle(hpa) {
 			return true
@@ -220,7 +251,6 @@ func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
 	if *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
 		return true
 	}
-
 	return false
 }
 
@@ -228,7 +258,7 @@ func elapsedDownscaleForbiddenWindow(hpa *scaleV1.HorizontalPodAutoscaler, downs
 	return hpa.Status.LastScaleTime != nil && hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
 }
 
-func isMinLocked(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+func isHpaMinScaled(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
 	return *hpa.Spec.MinReplicas > tuner.Spec.MinReplicas
 }
 

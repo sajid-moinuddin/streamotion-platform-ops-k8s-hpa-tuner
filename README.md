@@ -8,6 +8,8 @@ Just a POC for now.
 
 The project scaffold is generated from : https://book.kubebuilder.io/ 
 
+NOTE: if you are working on this project, watch this video a few times: https://www.youtube.com/watch?v=wMqzAOp15wo&t=1227s 
+
 Also ideas borrowed from:
 https://github.com/postmates/configurable-hpa 
 
@@ -54,7 +56,14 @@ How to start in command line and in IDE.
 TBD: GO setup in visual-studio-code details / links: What IDE configurations required (e.g. AWS credentials, Maven settings.xml, etc.)?
 
 # External dependencies
-External system dependencies (e.g. DB, Kafka) or service providers that it requires at runtime.
+
+kind
+make 
+
+```
+https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
+```
+
 
 # Inbound interfaces
 What input interfaces it exposes (event or API). What is their business importance?
@@ -72,7 +81,9 @@ Important "business" scenarios that this application handles? how? Explain or po
 What important business logic, workflows or calculations this application does? Explain or point to confluence.
 
 # References
-Bedrock: https://foxsportsau.atlassian.net/wiki/spaces/DEV/pages/734004070/Java+Bedrocks
 
+    best reference project (clean + functional tests): https://github.com/microsoft/k8s-cronjob-prescaler.git
+    https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379
+    GO111MODULE=off go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
 
 (instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for min Pods as we go)

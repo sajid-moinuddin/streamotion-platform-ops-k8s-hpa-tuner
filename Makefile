@@ -1,8 +1,18 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
+TEST_POD_IMG = sajid2045/phpload:1.1.1
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
+
+# Image URL to use all building/pushing image targets
+timestamp := $(shell /bin/date "+%Y%m%d-%H%M%S")
+# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
+KIND_CLUSTER_NAME ?= "hpa-tuner-controller"
+K8S_NODE_IMAGE ?= v1.15.3
+PROMETHEUS_INSTANCE_NAME ?= prometheus-operator
+CONFIG_MAP_NAME ?= hpa-tuner-controller-configmap
+METRICS_SERVER_IMG = k8s.gcr.io/metrics-server-amd64:v0.3.6
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -29,9 +39,48 @@ run: generate fmt vet manifests
 install: manifests
 	kustomize build config/crd | kubectl apply -f -
 
+# DEPLOYING:
+# # - Kind
+# deploy-kind: kind-start kind-load-img deploy-cluster
+
+kind-delete:
+	kind delete cluster --name ${KIND_CLUSTER_NAME}
+
+kind-start:
+ifeq (1, $(shell kind get clusters | grep ${KIND_CLUSTER_NAME} | wc -l))
+	@echo "Cluster already exists"
+else
+	@echo "Creating Cluster"
+	kind create cluster --name ${KIND_CLUSTER_NAME} --config test-data/kind/kind-cluster-1.14.10.yaml
+endif
+
+kind-load-metrics-server:
+	docker pull k8s.gcr.io/metrics-server-amd64:v0.3.6
+	kind load docker-image ${METRICS_SERVER_IMG} --name ${KIND_CLUSTER_NAME} || echo loaded
+	kubectl apply  -f test-data/kind/metrics-server.yaml
+
+
+kind-test-setup: kind-delete kind-start kind-load-metrics-server docker-build-phpload
+	kind load docker-image ${TEST_POD_IMG} --name ${KIND_CLUSTER_NAME}
+	kubectl apply  -f test-data/phpload/php-apache-application.yaml
+	sleep 10
+	kubectl get pods -A
+	kubectl get hpa -A
+
+kind-load-img: docker-build
+	@echo "Loading image into kind"
+	kind load docker-image ${IMG} --name ${KIND_CLUSTER_NAME} -v 10
+
+# Run integration tests in KIND
+kind-tests: 
+	ginkgo --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+	# -kubectl delete prescaledcronjobs --all -n psc-system
+
+
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
+
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
@@ -57,6 +106,9 @@ generate: controller-gen
 # Build the docker image
 docker-build: test
 	docker build . -t ${IMG}
+
+docker-build-phpload:
+	docker build -t ${TEST_POD_IMG}  ./test-data/phpload
 
 # Push the docker image
 docker-push:
