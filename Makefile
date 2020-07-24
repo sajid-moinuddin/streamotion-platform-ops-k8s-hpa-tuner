@@ -45,6 +45,7 @@ install: manifests
 
 kind-delete:
 	kind delete cluster --name ${KIND_CLUSTER_NAME}
+	sleep 5
 
 kind-start:
 ifeq (1, $(shell kind get clusters | grep ${KIND_CLUSTER_NAME} | wc -l))
@@ -73,8 +74,10 @@ kind-load-img: docker-build
 
 # Run integration tests in KIND
 kind-tests: 
-	ginkgo --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
-	# -kubectl delete prescaledcronjobs --all -n psc-system
+#	ginkgo -v --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+	kubectl delete HpaTuner --all -n phpload
+	ginkgo -v --skip="LONG TEST:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+	-kubectl delete HpaTuner --all -n phpload
 
 
 # Uninstall CRDs from a cluster
@@ -114,6 +117,9 @@ docker-build-phpload:
 docker-push:
 	docker push ${IMG}
 
+list:
+	@grep '^[^#[:space:]].*:' Makefile
+
 # find or download controller-gen
 # download controller-gen if necessary
 controller-gen:
@@ -130,3 +136,4 @@ CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
+

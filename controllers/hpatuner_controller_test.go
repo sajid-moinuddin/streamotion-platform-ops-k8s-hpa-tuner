@@ -4,6 +4,7 @@ import (
 	"context"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	scaleV1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"time"
 
@@ -47,6 +48,18 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			//TODO: more asserts!
 			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
+			hpaNamespacedName := types.NamespacedName{Namespace: _testGeneratedResource.Namespace, Name: _testGeneratedResource.Spec.ScaleTargetRef.Name}
+
+			hpa := &scaleV1.HorizontalPodAutoscaler{}
+
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx,hpaNamespacedName, hpa); err != nil {
+					return  false
+				}
+				log.Printf("********************************************hpa....%v=%v", *hpa.Spec.MinReplicas, _testGeneratedResource.Spec.MinReplicas)
+				return *hpa.Spec.MinReplicas == _testGeneratedResource.Spec.MinReplicas
+			}, timeout, interval).Should(BeTrue())
+
 		})
 	})
 })

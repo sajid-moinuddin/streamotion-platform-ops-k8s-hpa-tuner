@@ -17,10 +17,12 @@ limitations under the License.
 package controllers
 
 import (
+	"github.com/onsi/gomega/gexec"
 	"k8s.io/client-go/kubernetes"
 	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -57,7 +59,8 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
+	logger := zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter))
+	logf.SetLogger(logger)
 
 	useCluster := true
 
@@ -81,20 +84,23 @@ var _ = BeforeSuite(func(done Done) {
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Port: 9999,
+		MetricsBindAddress: "0",
 	})
 
 	Expect(err).ToNot(HaveOccurred())
 
-	clientSet, err := kubernetes.NewForConfig(cfg)
 
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	clientSet, err := kubernetes.NewForConfig(cfg)
+	Expect(err).ToNot(HaveOccurred())
+
 	err = (&HpaTunerReconciler{
 		Client:        k8sClient,
-		Log:           ctrl.Log.WithName("controllers").WithName("HpaTunerReconciler"),
+		Log:           ctrl.Log.WithName("controllers").WithName("Run"),
 		Scheme:        nil,
 		eventRecorder: k8sManager.GetEventRecorderFor("hpa-tuner"),
 		clientSet:     clientSet,
@@ -105,12 +111,20 @@ var _ = BeforeSuite(func(done Done) {
 
 
 
+	go func() {
+		err = k8sManager.Start(ctrl.SetupSignalHandler())
+		Expect(err).ToNot(HaveOccurred())
+	}()
+
+
 
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	gexec.KillAndWait(5 * time.Second)
+
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
