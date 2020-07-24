@@ -83,7 +83,7 @@ What important business logic, workflows or calculations this application does? 
 # References
 
     best reference project (clean + functional tests): https://github.com/microsoft/k8s-cronjob-prescaler.git
+    https://itnext.io/taking-a-kubernetes-operator-to-production-bc59708db420
     https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379
-    GO111MODULE=off go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
-
+    
 (instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for min Pods as we go)

@@ -2,6 +2,7 @@ apiVersion: webapp.streamotion.com.au/v1
 kind: HpaTuner
 metadata:
   name: php-apache-tuner
+  namespace: phpload
 spec:
   downscaleForbiddenWindowSeconds: 60
   scaleTargetRef:

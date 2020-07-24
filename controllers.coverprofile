@@ -40,6 +40,6 @@ hpa-tuner/controllers/hpatuner_controller.go:251.53,253.3 1 0
 hpa-tuner/controllers/hpatuner_controller.go:257.121,259.2 1 0
 hpa-tuner/controllers/hpatuner_controller.go:261.90,263.2 1 0
 hpa-tuner/controllers/hpatuner_controller.go:265.94,267.2 1 0
-hpa-tuner/controllers/hpatuner_controller.go:269.71,273.16 3 0
-hpa-tuner/controllers/hpatuner_controller.go:277.2,289.14 9 0
+hpa-tuner/controllers/hpatuner_controller.go:269.71,273.16 3 1
+hpa-tuner/controllers/hpatuner_controller.go:277.2,289.14 9 1
 hpa-tuner/controllers/hpatuner_controller.go:273.16,275.3 1 0

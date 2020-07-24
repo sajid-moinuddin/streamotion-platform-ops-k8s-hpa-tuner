@@ -17,7 +17,9 @@ limitations under the License.
 package controllers
 
 import (
+	"k8s.io/client-go/kubernetes"
 	"path/filepath"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -36,10 +38,14 @@ import (
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-//https://engineering.pivotal.io/post/gp4k-kubebuilder-tdd/
+// VERY USEFUL:
+//https://itnext.io/taking-a-kubernetes-operator-to-production-bc59708db420
+//https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379
 
 var cfg *rest.Config
 var k8sClient client.Client
+var k8sManager ctrl.Manager
+
 var testEnv *envtest.Environment
 
 func TestAPIs(t *testing.T) {
@@ -72,9 +78,33 @@ var _ = BeforeSuite(func(done Done) {
 
 	// +kubebuilder:scaffold:scheme
 
+	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+		Port: 9999,
+	})
+
+	Expect(err).ToNot(HaveOccurred())
+
+	clientSet, err := kubernetes.NewForConfig(cfg)
+
+
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+
+	err = (&HpaTunerReconciler{
+		Client:        k8sClient,
+		Log:           ctrl.Log.WithName("controllers").WithName("HpaTunerReconciler"),
+		Scheme:        nil,
+		eventRecorder: k8sManager.GetEventRecorderFor("hpa-tuner"),
+		clientSet:     clientSet,
+		syncPeriod:    0,
+	}).SetupWithManager(k8sManager)
+
+	Expect(err).ToNot(HaveOccurred())
+
+
+
 
 	close(done)
 }, 60)
