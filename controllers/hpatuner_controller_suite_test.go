@@ -46,6 +46,7 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var clientSet *kubernetes.Clientset
 var k8sManager ctrl.Manager
 
 var testEnv *envtest.Environment
@@ -60,6 +61,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	logger := zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter))
+
 	logf.SetLogger(logger)
 
 	useCluster := true
@@ -82,25 +84,26 @@ var _ = BeforeSuite(func(done Done) {
 	// +kubebuilder:scaffold:scheme
 
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
-		Port: 9999,
+		Scheme:             scheme.Scheme,
+		Port:               9999,
 		MetricsBindAddress: "0",
 	})
 
 	Expect(err).ToNot(HaveOccurred())
 
-
-
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	clientSet, err := kubernetes.NewForConfig(cfg)
+	clientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
+
+
+	controllerLog := ctrl.Log.WithName("controllers").WithName("Run")
 
 	err = (&HpaTunerReconciler{
 		Client:        k8sClient,
-		Log:           ctrl.Log.WithName("controllers").WithName("Run"),
+		Log:           controllerLog,
 		Scheme:        nil,
 		eventRecorder: k8sManager.GetEventRecorderFor("hpa-tuner"),
 		clientSet:     clientSet,
@@ -109,14 +112,10 @@ var _ = BeforeSuite(func(done Done) {
 
 	Expect(err).ToNot(HaveOccurred())
 
-
-
 	go func() {
 		err = k8sManager.Start(ctrl.SetupSignalHandler())
 		Expect(err).ToNot(HaveOccurred())
 	}()
-
-
 
 	close(done)
 }, 120)

@@ -75,9 +75,7 @@ kind-load-img: docker-build
 # Run integration tests in KIND
 kind-tests: 
 #	ginkgo -v --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
-	kubectl delete HpaTuner --all -n phpload
 	ginkgo -v --skip="LONG TEST:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
-	-kubectl delete HpaTuner --all -n phpload
 
 
 # Uninstall CRDs from a cluster

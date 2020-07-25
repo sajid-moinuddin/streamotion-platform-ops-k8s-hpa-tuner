@@ -90,9 +90,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
-	log.Info("start: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
-	log.Info("")
-	log.Info(fmt.Sprintf("****Reconcile request: %v\n", req))
+	log.Info("Reconcile: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
 
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
@@ -104,10 +102,6 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return resStop, client.IgnoreNotFound(err)
 	}
 	log.Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
-
-	//hpaRef := hpaTuner.Spec.ScaleTargetRef
-
-	//log.Info(fmt.Sprintf("hparef: %v \n", hpaRef))
 
 	//TODO: check validity of hpaTuner
 
@@ -121,8 +115,6 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Error reading HPA: ", "hpa", hpaNamespacedName)
 		return resRepeat, nil
 	}
-
-	log.Info(fmt.Sprintf("*Read HPA: %v", hpaNamespacedName))
 
 	// --------------- ok so we got the hpa object & hpa-tuner object at hand, now lets do reconcile.....
 	if err := r.ReconcileHPA(&hpaTuner, hpa); err != nil {
@@ -144,30 +136,35 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // HpaTunerReconciler reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
-	log := r.Log.WithValues("hpatuner", hpa.Namespace)
+	log := r.Log
+
 	log.Info(fmt.Sprintf("--trying to reconcile..hpa: %v", toString(hpa)))
-	//MUST READ: https://engineering.pivotal.io/post/gp4k-kubebuilder-lessons/
 
 	//??scaleUp??
 	scaleTarget := scaleTo(hpaTuner, hpa)
-	if scaleTarget > *hpa.Spec.MinReplicas {
-		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scaleTarget))
-		r.UpdateHpaMin(hpaTuner, hpa, scaleTarget)
 
-		//r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
-	} else if isInScaledState(hpaTuner, hpa) {
-		log.Info("HPA IS IN SCALED MODE!!!")
-		if shouldScaleDownHpaMin(hpaTuner, hpa) {
+	log.Info(fmt.Sprintf("** reconcile -> currentHpaMin: %v <===> scaleTarget: %v", *hpa.Spec.MinReplicas, scaleTarget))
+
+	if r.needsScalingHpaMin(scaleTarget, *hpa.Spec.MinReplicas) {
+		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scaleTarget)) //debug
+		r.UpdateHpaMin(hpaTuner, hpa, scaleTarget)
+		r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
+	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
+		if canCoolDownHpaMin(hpaTuner, hpa) {
 			log.Info("Need to UnlockMin")
 			r.UpdateHpaMin(hpaTuner, hpa, hpaTuner.Spec.MinReplicas)
 		} else {
 			log.Info("----hpa locked but scaledown condition not met")
 		}
 	} else {
-		log.Info("Nothing to do...")
+		log.V(1).Info("Nothing to do...")
 	}
 
 	return nil
+}
+
+func (r *HpaTunerReconciler) needsScalingHpaMin(scaleTarget int32, currntHpaMin int32) bool {
+	return scaleTarget > currntHpaMin
 }
 
 func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, scaleTarget int32) (err error) {
@@ -180,7 +177,9 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
 	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
-	r.Client.Update(context.TODO(), hpaTuner)
+	if err := r.Client.Update(context.TODO(), hpaTuner); err != nil {
+		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "scaleTarget", scaleTarget)
+	}
 
 	return nil
 }
@@ -220,7 +219,7 @@ func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int
 
 func max(nums ...int32) int32 {
 	max := nums[0]
-	for i :=1; i < len(nums); i++ {
+	for i := 1; i < len(nums); i++ {
 		if max < nums[i] {
 			max = nums[i]
 		}
@@ -235,9 +234,9 @@ func getDesiredReplicaFromDecisionService(tuner *webappv1.HpaTuner, hpa *scaleV1
 	return -1
 }
 
-func shouldScaleDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
-	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
-	if elapsedDownscaleForbiddenWindow(hpa, downscaleForbiddenWindow) {
+func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+	if elapsedDownscaleForbiddenWindow(hpa, tuner) {
+		//now I can consider letting it cooldown if idle
 		if isIdle(hpa) {
 			return true
 		}
@@ -253,18 +252,16 @@ func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
 	return false
 }
 
-func elapsedDownscaleForbiddenWindow(hpa *scaleV1.HorizontalPodAutoscaler, downscaleForbiddenWindow time.Duration) bool {
-	return hpa.Status.LastScaleTime != nil && hpa.Status.LastScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
+func elapsedDownscaleForbiddenWindow(hpa *scaleV1.HorizontalPodAutoscaler, tuner *webappv1.HpaTuner) bool {
+	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
+	return tuner.Status.LastUpScaleTime != nil && tuner.Status.LastUpScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
 }
 
-func isHpaMinScaled(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
-	return *hpa.Spec.MinReplicas > tuner.Spec.MinReplicas
-}
-
-func isInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+func isHpaMinAlreadyInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
 	return hpaTuner.Spec.MinReplicas < *hpa.Spec.MinReplicas
 }
 
+//TODO: need to/can use informer ?? otherwise will make get/list options directly to api , can put pressure on api-server, probably should be fine (api-server creates backpressure too)
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	clientConfig := mgr.GetConfig()

@@ -18,38 +18,25 @@ This will leverage https://github.com/fsa-streamotion/streamotion-platform-ops-s
 Jenkins Build: http://jenkins.web.dev.cluster.foxsports-gitops-prod.com.au/job/fsa-streamotion/job/streamotion-platform-ops-k8s-hpa-tuner/job/master/ 
 
 # How to start
-How to start in command line and in IDE.
+How to start in command line and in IDE (Manual Testing).
 
-1. Start Your local k8s server (via kind)
-
-```
-    cd kind
-    ./build-cluster.sh
-```
-
-2. Deploy some sample k8s resource
-
+1. Start Your local k8s server and test resources (via kind)
 
 ```
-    cd phpload
-    ./init.sh #this builds a sample docker image and registers it with your kind cluster along with a deployment and a horizontal-pod-autoscaler that you can now test
+    make kind-test-setup
 ```
 
-3. Run your controller
-```
-    cd $PROJECT_DIR
-    ./setup.sh
-```
-
-4. Deploy a sample HpaTuner Resource
+2. Run Tests
 
 ```
-    kubectl apply -f config/samples/webapp_v1_hpatuner.yaml
+    make kind-tests
 ```
+
+
 
 5. Generate some load:
 ```
-    cd phpload
+    cd test-data/phpload
     ./run_load.sh 
 ```
 
@@ -57,10 +44,10 @@ TBD: GO setup in visual-studio-code details / links: What IDE configurations req
 
 # External dependencies
 
+```
 kind
 make 
-
-```
+ginkgo
 https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
 ```
 
@@ -78,12 +65,12 @@ Explain or point to confluence.
 Important "business" scenarios that this application handles? how? Explain or point to confluence.
 
 # Business logic
-What important business logic, workflows or calculations this application does? Explain or point to confluence.
+        
+Instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for 
+min Pods as we go
 
 # References
-
     best reference project (clean + functional tests): https://github.com/microsoft/k8s-cronjob-prescaler.git
     https://itnext.io/taking-a-kubernetes-operator-to-production-bc59708db420
     https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379
-    
-(instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for min Pods as we go)
+    https://github.com/kubernetes-sigs/controller-runtime/blob/master/pkg/client/example_test.go
