@@ -74,3 +74,4 @@ min Pods as we go
     https://itnext.io/taking-a-kubernetes-operator-to-production-bc59708db420
     https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379
     https://github.com/kubernetes-sigs/controller-runtime/blob/master/pkg/client/example_test.go
+    https://sdk.operatorframework.io/docs/golang/references/client/
