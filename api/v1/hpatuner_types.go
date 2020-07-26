@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,7 +33,8 @@ type HpaTunerSpec struct {
 	DownscaleForbiddenWindowSeconds int32 `json:"downscaleForbiddenWindowSeconds,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=600
-	UpscaleForbiddenWindowSeconds int32 `json:"upscaleForbiddenWindowSeconds,omitempty"`
+	UpscaleForbiddenWindowAfterDownScaleSeconds int32 `json:"upscaleForbiddenWindowAfterDownscaleSeconds,omitempty"`
+
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=10
 	ScaleUpLimitFactor int32 `json:"scaleUpLimitFactor,omitempty"`
@@ -44,19 +44,19 @@ type HpaTunerSpec struct {
 	// // +kubebuilder:validation:Minimum=0.01
 	// // +kubebuilder:validation:Maximum=0.99
 	// Tolerance float64 `json:"tolerance,omitempty"`
-
 	// part of HorizontalPodAutoscalerSpec, see comments in the k8s-1.10.8 repo: staging/src/k8s.io/api/autoscaling/v1/types.go
 	// reference to scaled resource; horizontal pod autoscaler will learn the current resource consumption
 	// and will set the desired number of pods by using its Scale subresource.
 	ScaleTargetRef CrossVersionObjectReference `json:"scaleTargetRef"`
-	// specifications that will be used to calculate the desired replica count
-	Metrics []autoscalingv2.MetricSpec `json:"metrics,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
 	MinReplicas int32 `json:"minReplicas,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
 	MaxReplicas int32 `json:"maxReplicas"`
+
+	// +kubebuilder:default := false
+	UseDecisionService bool `json:"useDecisionService"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.
@@ -72,9 +72,10 @@ type CrossVersionObjectReference struct {
 
 // HpaTunerStatus defines the observed state of HpaTuner
 type HpaTunerStatus struct {
-	// Last time a scaleup event was observed
+	// Last time I upped the hpaMin
 	LastUpScaleTime *metav1.Time `json:"lastUpScaleTime,omitempty"`
-	// Last time a scale-down event was observed
+
+	// Last time I downed the hpaMin
 	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
 }
 

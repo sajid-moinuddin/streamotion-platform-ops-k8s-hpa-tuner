@@ -51,6 +51,17 @@ var k8sManager ctrl.Manager
 
 var testEnv *envtest.Environment
 
+var fakeDecisionService FakeScalingDecisionService
+
+type FakeScalingDecisionService struct {
+	FakeDecision *ScalingDecision
+}
+
+func (s FakeScalingDecisionService) scalingDecision() ScalingDecision {
+	//println(fmt.Printf("-------------object ref: %v" , s.FakeDecision))
+	return *s.FakeDecision
+}
+
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -98,16 +109,21 @@ var _ = BeforeSuite(func(done Done) {
 	clientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-
 	controllerLog := ctrl.Log.WithName("controllers").WithName("Run")
 
+	fakeDecisionService = FakeScalingDecisionService{
+		FakeDecision: &ScalingDecision{MinReplicas: 7},
+	}
+
+	//register the controller to controller manager
 	err = (&HpaTunerReconciler{
-		Client:        k8sClient,
-		Log:           controllerLog,
-		Scheme:        nil,
-		eventRecorder: k8sManager.GetEventRecorderFor("hpa-tuner"),
-		clientSet:     clientSet,
-		syncPeriod:    0,
+		Client:                 k8sClient,
+		Log:                    controllerLog,
+		Scheme:                 nil,
+		eventRecorder:          k8sManager.GetEventRecorderFor("hpa-tuner"),
+		clientSet:              clientSet,
+		syncPeriod:             0,
+		scalingDecisionService: fakeDecisionService,
 	}).SetupWithManager(k8sManager)
 
 	Expect(err).ToNot(HaveOccurred())

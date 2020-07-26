@@ -51,6 +51,7 @@ ginkgo
 https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
 ```
 
+NOTE: IntelliJ seems to have better support than visualstudio code for GO
 
 # Inbound interfaces
 What input interfaces it exposes (event or API). What is their business importance?
@@ -70,6 +71,9 @@ Instead of updating the deployment, the plan is to re-use the logic of the HPA b
 min Pods as we go
 
 # References
+The CRD is generated from the `hpatuner_types.go`, if you change it, re-run make 
+
+
     best reference project (clean + functional tests): https://github.com/microsoft/k8s-cronjob-prescaler.git
     https://itnext.io/taking-a-kubernetes-operator-to-production-bc59708db420
     https://itnext.io/testing-kubernetes-operators-with-ginkgo-gomega-and-the-operator-runtime-6ad4c2492379

@@ -18,7 +18,9 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"time"
 
@@ -29,7 +31,6 @@ import (
 	webappv1 "hpa-tuner/api/v1"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -53,11 +54,18 @@ const (
 // HpaTunerReconciler reconciles a HpaTuner object
 type HpaTunerReconciler struct {
 	client.Client
-	Log           logr.Logger
-	Scheme        *runtime.Scheme
-	eventRecorder record.EventRecorder
-	clientSet     kubernetes.Interface
-	syncPeriod    time.Duration
+	Log                    logr.Logger
+	Scheme                 *runtime.Scheme
+	eventRecorder          record.EventRecorder
+	clientSet              kubernetes.Interface
+	syncPeriod             time.Duration
+	scalingDecisionService ScalingDecisionService
+	k8sHpaDownScaleTime    time.Duration  //time takes for k8s to change desired count when cpu is idle
+
+}
+
+type ScalingDecisionService interface {
+	scalingDecision() ScalingDecision
 }
 
 //// HpaTunerStatus defines the observed state of HpaTuner
@@ -67,12 +75,9 @@ type HpaTunerReconciler struct {
 //	// Last time a scale-down event was observed
 //	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
 //}
-type DecisionServiceDecision struct {
-	Decision *Decision `json:"decision,omitempty"`
-}
 
-type Decision struct {
-	Number int32 `json:"number"`
+type ScalingDecision struct {
+	MinReplicas int32 `json:"number"`
 }
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
@@ -138,21 +143,24 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log
 
-	log.Info(fmt.Sprintf("--trying to reconcile..hpa: %v", toString(hpa)))
+	log.Info("***Reconcile: ", "hpa", toString(hpa) , "tuner: ", toStringTuner(*hpaTuner))
+	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
+	needsScaling, scalingTarget := r.needsScalingHpaMin(hpaTuner, hpa, decisionServiceDesired)
 
-	//??scaleUp??
-	scaleTarget := scaleTo(hpaTuner, hpa)
-
-	log.Info(fmt.Sprintf("** reconcile -> currentHpaMin: %v <===> scaleTarget: %v", *hpa.Spec.MinReplicas, scaleTarget))
-
-	if r.needsScalingHpaMin(scaleTarget, *hpa.Spec.MinReplicas) {
-		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scaleTarget)) //debug
-		r.UpdateHpaMin(hpaTuner, hpa, scaleTarget)
-		r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulLockMin", fmt.Sprintf("Locked Min to %v", scaleTarget))
+	if needsScaling {
+		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
+		updated, _ :=r.UpdateHpaMin(hpaTuner, hpa, scalingTarget)
+		if updated {
+			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("Locked Min to %v", scalingTarget))
+		}
 	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
-		if canCoolDownHpaMin(hpaTuner, hpa) {
+		if canCoolDownHpaMin(hpaTuner, hpa, decisionServiceDesired) {
 			log.Info("Need to UnlockMin")
-			r.UpdateHpaMin(hpaTuner, hpa, hpaTuner.Spec.MinReplicas)
+			downscaleTarget := max(hpaTuner.Spec.MinReplicas, decisionServiceDesired)
+			updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
+			if updated {
+				r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("Locked Min to %v", downscaleTarget))
+			}
 		} else {
 			log.Info("----hpa locked but scaledown condition not met")
 		}
@@ -163,25 +171,69 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 	return nil
 }
 
-func (r *HpaTunerReconciler) needsScalingHpaMin(scaleTarget int32, currntHpaMin int32) bool {
-	return scaleTarget > currntHpaMin
-}
+func (r *HpaTunerReconciler) needsScalingHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) (bool, int32) {
+	currentDesired := hpa.Status.DesiredReplicas
+	currentHpaMin := *hpa.Spec.MinReplicas
+	actualMin := tuner.Spec.MinReplicas
 
-func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, scaleTarget int32) (err error) {
-	r.Log.Info("UpdateHpaMin: ", "scaleTarget", scaleTarget)
-	hpa.Spec.MinReplicas = &scaleTarget
-	if err := r.Client.Update(context.TODO(), hpa); err != nil {
-		r.Log.Error(err, "Failed to Update hpa Min", "scaleTarget", scaleTarget)
+
+	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
+		if currentHpaMin < decisionServiceDesired {
+			return true, decisionServiceDesired
+		} else {
+			r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
+				"hpa", toString(hpa),
+				"lastDownscaled", tuner.Status.LastDownScaleTime)
+			return false, 0
+		}
+	} else {
+		newMax := max(decisionServiceDesired, actualMin, currentDesired)
+
+		if newMax > currentHpaMin {
+			return true, newMax
+		} else {
+			return false, 0
+		}
 	}
 
-	hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
+}
+
+func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner,) bool {
+	upscaleForbiddenWindow := time.Duration(tuner.Spec.UpscaleForbiddenWindowAfterDownScaleSeconds) * time.Second
+
+	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
+		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
+		return true
+	}
+
+	return false
+}
+
+func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool , err error) {
+	r.Log.Info("UpdateHpaMin: ", "newMin", newMin)
+	oldMin := *hpa.Spec.MinReplicas
+
+	if oldMin == newMin { //must be some upstream calculation issue
+		return false, nil
+	}
+
+	hpa.Spec.MinReplicas = &newMin
+	if err := r.Client.Update(context.TODO(), hpa); err != nil {
+		r.Log.Error(err, "Failed to Update hpa Min", "newMin", newMin)
+	}
+
+	if oldMin > newMin {
+		hpaTuner.Status.LastDownScaleTime = &metav1.Time{Time: time.Now()}
+	} else {
+		hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
+	}
 	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
 	if err := r.Client.Update(context.TODO(), hpaTuner); err != nil {
-		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "scaleTarget", scaleTarget)
+		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "newMin", newMin)
 	}
 
-	return nil
+	return true,  nil
 }
 
 func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
@@ -210,11 +262,16 @@ func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
 		lastScaleTime)
 }
 
-func scaleTo(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
-	//I got control of the scale decision now!
-	desiredReplicaFromDecisionService := getDesiredReplicaFromDecisionService(tuner, hpa)
 
-	return max(tuner.Spec.MinReplicas, hpa.Status.DesiredReplicas, desiredReplicaFromDecisionService)
+func toStringTuner(hpatuner webappv1.HpaTuner) string {
+
+	return fmt.Sprintf("n: %v, status: %v",
+		hpatuner.Name,
+		hpatuner.Status)
+}
+
+func (r *HpaTunerReconciler) scaleToDesired(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
+	return max(tuner.Spec.MinReplicas, hpa.Status.DesiredReplicas)
 }
 
 func max(nums ...int32) int32 {
@@ -228,13 +285,24 @@ func max(nums ...int32) int32 {
 	return max
 }
 
-func getDesiredReplicaFromDecisionService(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
+func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
+
+	if tuner.Spec.UseDecisionService && r.scalingDecisionService == nil {
+		r.Log.Error(errors.New("Null Decision Service!!!"), fmt.Sprintf("Wants to use decision service but decisionservice is nil! %v", tuner.Name))
+		return -1
+	}
+
+	if tuner.Spec.UseDecisionService {
+		decision := r.scalingDecisionService.scalingDecision()
+		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
+		return decision.MinReplicas
+	}
 
 	return -1
 }
 
-func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
+func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) bool {
 	if elapsedDownscaleForbiddenWindow(hpa, tuner) {
 		//now I can consider letting it cooldown if idle
 		if isIdle(hpa) {
@@ -246,9 +314,11 @@ func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutos
 }
 
 func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
-	if *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
+
+	if hpa.Status.CurrentCPUUtilizationPercentage == nil || *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
 		return true
 	}
+
 	return false
 }
 
@@ -279,7 +349,7 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.syncPeriod = defaultSyncPeriod
 	r.clientSet = clientSet
 	r.eventRecorder = recorder
-
+	r.k8sHpaDownScaleTime = time.Minute * 30
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.HpaTuner{}).
 		Complete(r)

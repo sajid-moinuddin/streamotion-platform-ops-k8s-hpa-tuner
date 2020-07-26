@@ -10,8 +10,4 @@ spec:
     name: php-apache
   minReplicas: 1
   maxReplicas: 1000
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      targetAverageUtilization: 50
+  useDecisionService: false
