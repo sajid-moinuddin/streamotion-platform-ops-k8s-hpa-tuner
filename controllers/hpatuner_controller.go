@@ -87,6 +87,8 @@ type ScalingDecision struct {
 // +kubebuilder:rbac:groups=,resources=horizontalpodautoscalers,verbs=get;list;watch
 
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	/*template method to hide k8s controller details, main calculation is delegated after k8s objects are fetched*/
+
 	ctx := context.Background()
 	log := r.Log.WithValues("hpatuner", req.NamespacedName)
 
@@ -145,7 +147,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 
 	log.Info("***Reconcile: ", "hpa", toString(hpa) , "tuner: ", toStringTuner(*hpaTuner))
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
-	needsScaling, scalingTarget := r.needsScalingHpaMin(hpaTuner, hpa, decisionServiceDesired)
+	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
 	if needsScaling {
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
@@ -155,11 +157,17 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 		}
 	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
 		if canCoolDownHpaMin(hpaTuner, hpa, decisionServiceDesired) {
-			log.Info("Need to UnlockMin")
 			downscaleTarget := max(hpaTuner.Spec.MinReplicas, decisionServiceDesired)
-			updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
-			if updated {
-				r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("Locked Min to %v", downscaleTarget))
+
+			if downscaleTarget == *hpa.Spec.MinReplicas {
+				log.V(2).Info("no action needed")
+			} else {
+				log.Info("Need to UnlockMin")
+
+				updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
+				if updated {
+					r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("Locked Min to %v", downscaleTarget))
+				}
 			}
 		} else {
 			log.Info("----hpa locked but scaledown condition not met")
@@ -171,7 +179,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 	return nil
 }
 
-func (r *HpaTunerReconciler) needsScalingHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) (bool, int32) {
+func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) (bool, int32) {
 	currentDesired := hpa.Status.DesiredReplicas
 	currentHpaMin := *hpa.Spec.MinReplicas
 	actualMin := tuner.Spec.MinReplicas
@@ -315,6 +323,7 @@ func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutos
 
 func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
 
+	//todo, optionally take the idle cpu from hpatunerConfig
 	if hpa.Status.CurrentCPUUtilizationPercentage == nil || *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
 		return true
 	}

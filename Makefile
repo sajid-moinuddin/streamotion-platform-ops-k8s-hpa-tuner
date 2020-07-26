@@ -77,6 +77,9 @@ kind-tests:
 #	ginkgo -v --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 	ginkgo -v --skip="LONG TEST:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 
+focus-test:
+	ginkgo -v -focus="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+
 
 # Uninstall CRDs from a cluster
 uninstall: manifests
