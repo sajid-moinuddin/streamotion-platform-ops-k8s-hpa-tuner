@@ -39,11 +39,6 @@ spec:
               maximum: 600
               minimum: 1
               type: integer
-            upscaleForbiddenWindowAfterDownscaleSeconds:
-              format: int32
-              maximum: 600
-              minimum: 1
-              type: integer
             maxReplicas:
               format: int32
               maximum: 1000
@@ -85,6 +80,11 @@ spec:
               maximum: 20
               minimum: 1
               type: integer
+            upscaleForbiddenWindowAfterDownscaleSeconds:
+              format: int32
+              maximum: 600
+              minimum: 1
+              type: integer
             useDecisionService:
               type: boolean
           required:
@@ -95,15 +95,14 @@ spec:
         status:
           description: HpaTunerStatus defines the observed state of HpaTuner
           properties:
-            lastUpScaleTime:
-              description: Last time I upped the hpaMin
-              format: date-time
-              type: string
             lastDownScaleTime:
               description: Last time I downed the hpaMin
               format: date-time
               type: string
-
+            lastUpScaleTime:
+              description: Last time I upped the hpaMin
+              format: date-time
+              type: string
           type: object
       type: object
   version: v1

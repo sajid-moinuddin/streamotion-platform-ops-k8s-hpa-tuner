@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	scaleV1 "k8s.io/api/autoscaling/v1"
+	v12 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
@@ -59,10 +60,9 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			//TODO: more asserts!
 			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
 			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
-			verifier := verifierCurry(hpaNamespacedName, timeout * 10)
+			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
-
-			verifier( func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that of hpatuner.min
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that of hpatuner.min
 				return *fetchedHpa.Spec.MinReplicas == _hpaTunerRef.Spec.MinReplicas
 			})
 
@@ -76,12 +76,16 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("Test HpaMin Is changed and locked with desired", func() {
+		It("WIP: Test HpaMin Is changed and locked with desired", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
+			toCreateHpa.Spec.MinReplicas = new(int32)
+			*toCreateHpa.Spec.MinReplicas =  1
+			toCreateHpa.Spec.MaxReplicas = 10
 
 			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
+
 			toCreateTuner := generateHpaTuner()
 			toCreateTuner.Spec.UseDecisionService = false
 			toCreateTuner.Spec.MinReplicas = 1
@@ -91,38 +95,36 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			time.Sleep(time.Second * 5)
 
-			_hpaTunerRef := &webappv1.HpaTuner{}
-			Eventually(func() bool { //verify hpatuner.lastUpScaleTime was updated
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: toCreateTuner.Name, Namespace: toCreateTuner.Namespace}, _hpaTunerRef)
-				log.Printf("lastUpscaleTime: %v", _hpaTunerRef.Status.LastUpScaleTime)
-				return err == nil && _hpaTunerRef.Status.LastUpScaleTime != nil
+			loadGeneratorPod := generateLoadPod()
+			Expect(k8sClient.Create(ctx, &loadGeneratorPod)).Should(Succeed())
+			fetchedLoadGeneratorPod := &v12.Pod{}
+
+			Eventually(func() bool{
+				podName := types.NamespacedName{Name: loadGeneratorPod.Name, Namespace: loadGeneratorPod.Namespace}
+
+				err := k8sClient.Get(ctx, podName, fetchedLoadGeneratorPod)
+				Expect(err).Should(BeNil())
+
+				return fetchedLoadGeneratorPod.Status.ContainerStatuses != nil &&  fetchedLoadGeneratorPod.Status.ContainerStatuses[0].Ready == true
 			}, timeout, interval).Should(BeTrue())
 
-			//TODO: more asserts!
-			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
-			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
+			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name:toCreateHpa.Name})
 
-			hpa := &scaleV1.HorizontalPodAutoscaler{}
+			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
+				return *autoscaler.Spec.MinReplicas == toCreateHpa.Spec.MaxReplicas
+			})
 
-			Eventually(func() bool { //verify hpa.min was upped to match that of hpatuner.min
-				if err := k8sClient.Get(ctx, hpaNamespacedName, hpa); err != nil {
-					return false
-				}
-				log.Printf("waiting for condition hpaMin:%v=tunerMin:%v", *hpa.Spec.MinReplicas, _hpaTunerRef.Spec.MinReplicas)
-				return *hpa.Spec.MinReplicas == _hpaTunerRef.Spec.MinReplicas
-			}, timeout, interval).Should(BeTrue())
+			err := k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
+			Expect(err).Should(BeNil())
 
-			//TODO: find better assert mechanism, the below will fail to which assert in those `&&` fails
-			Eventually(func() bool { //verify event was published to hpatuner
-				opts := v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.namespace=%s,involvedObject.uid=%s", toCreateTuner.Name, toCreateTuner.Namespace, _hpaTunerRef.UID)}
-				events, _ := clientSet.CoreV1().Events(toCreateTuner.Namespace).List(opts)
-				log.Print(events.Items[0])
-				return events != nil && events.Items != nil && len(events.Items) == 1 && events.Items[0].Reason == "SuccessfulUpscaleMin"
-			}, timeout, interval).Should(BeTrue())
+			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
+				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
+			})
 
+			time.Sleep(time.Minute * 10)
 		})
 
-		It("WIP: Test Decision From Decision Service is Honored", func() {
+		It("Test Decision From Decision Service is Honored", func() {
 			logger.Println("----------------start test-----------")
 
 			fakeDecisionService.FakeDecision.MinReplicas = 13
@@ -142,20 +144,20 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
 			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
 
-			verifier := verifierCurry(hpaNamespacedName, timeout * 10)
+			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
-			verifier( func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
 				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
 			})
 
 			fakeDecisionService.FakeDecision.MinReplicas = 16
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool{ //verify hpa.min was changed again when the decision service gave different decision
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
 				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
 			})
 
 			////TODO: how to change kind to make HPA change desired count faster?? below takes too long as it waits for k8s to scale down `desiredCount` after hpa min is changed
 			fakeDecisionService.FakeDecision.MinReplicas = 7
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool{ //verify hpa.min was changed again when the decision service gave different decision
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
 				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
 				return hpaDownScaled
 			})
@@ -172,15 +174,15 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 /**
 Curry Function, a bit of functional voodo but nicely hides the details of hpa fetch and reduce duplication, so necessary evil
- */
-func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) (func(condition func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool)) {
+*/
+func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(condition func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool) {
 	eventuallyTimeOut := timeout
 
 	if len(optTimeout) > 0 {
 		eventuallyTimeOut = optTimeout[0]
 	}
 
-	return func(condition func (autoscaler *scaleV1.HorizontalPodAutoscaler) bool) {
+	return func(condition func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool) {
 		Eventually(func() bool {
 			ctx := context.Background()
 			fetchedHpa := scaleV1.HorizontalPodAutoscaler{}
@@ -190,9 +192,43 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) (func
 			log.Printf("------------------fetched: %v/%v", fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas)
 
 			return condition(&fetchedHpa)
-		},eventuallyTimeOut, interval ).Should(BeTrue())
+		}, eventuallyTimeOut, interval).Should(BeTrue())
 	}
 }
+
+func generateLoadPod() v12.Pod {
+	containers  := [1]v12.Container{}
+
+	containers[0] = v12.Container{
+		Name:                     "load-generator",
+		Image:                    "busybox",
+		Command:                  []string {"/bin/sh"},
+		Args:                     []string{"-c","while true; do wget -q -O-  http://php-apache; done"},
+	}
+
+	var thePod = v12.Pod{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "load-generator",
+			Namespace: "phpload",
+		},
+		Spec: v12.PodSpec{
+			Containers: []v12.Container{
+				{
+					Name:                     "load-generator",
+					Image:                    "busybox",
+					Command:                  []string {"/bin/sh"},
+					Args:                     []string{"-c","while true; do wget -q -O-  http://php-apache; done"},
+				},
+			},
+		},
+	}
+	return thePod
+}
+
 
 func generateHpa() scaleV1.HorizontalPodAutoscaler {
 	//TODO: ?? nicer way to initiate those *int32 ??
@@ -229,9 +265,9 @@ func generateHpa() scaleV1.HorizontalPodAutoscaler {
 
 func generateHpaTuner() webappv1.HpaTuner {
 	spec := webappv1.HpaTunerSpec{
-		DownscaleForbiddenWindowSeconds: 30,
+		DownscaleForbiddenWindowSeconds:             30,
 		UpscaleForbiddenWindowAfterDownScaleSeconds: 600,
-		ScaleUpLimitFactor:              2,
+		ScaleUpLimitFactor:                          2,
 		ScaleTargetRef: webappv1.CrossVersionObjectReference{
 			Kind: "HorizontalPodAutoscaler",
 			Name: "php-apache",

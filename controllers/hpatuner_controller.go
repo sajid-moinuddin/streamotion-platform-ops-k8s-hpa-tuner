@@ -60,7 +60,7 @@ type HpaTunerReconciler struct {
 	clientSet              kubernetes.Interface
 	syncPeriod             time.Duration
 	scalingDecisionService ScalingDecisionService
-	k8sHpaDownScaleTime    time.Duration  //time takes for k8s to change desired count when cpu is idle
+	k8sHpaDownScaleTime    time.Duration //time takes for k8s to change desired count when cpu is idle
 
 }
 
@@ -145,13 +145,13 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log
 
-	log.Info("***Reconcile: ", "hpa", toString(hpa) , "tuner: ", toStringTuner(*hpaTuner))
+	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner))
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
 	if needsScaling {
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
-		updated, _ :=r.UpdateHpaMin(hpaTuner, hpa, scalingTarget)
+		updated, _ := r.UpdateHpaMin(hpaTuner, hpa, scalingTarget)
 		if updated {
 			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("Locked Min to %v", scalingTarget))
 		}
@@ -184,7 +184,6 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	currentHpaMin := *hpa.Spec.MinReplicas
 	actualMin := tuner.Spec.MinReplicas
 
-
 	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
 		if currentHpaMin < decisionServiceDesired {
 			return true, decisionServiceDesired
@@ -206,7 +205,7 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 
 }
 
-func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner,) bool {
+func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 	upscaleForbiddenWindow := time.Duration(tuner.Spec.UpscaleForbiddenWindowAfterDownScaleSeconds) * time.Second
 
 	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
@@ -217,7 +216,7 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner,) bool 
 	return false
 }
 
-func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool , err error) {
+func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool, err error) {
 	r.Log.Info("UpdateHpaMin: ", "newMin", newMin)
 	oldMin := *hpa.Spec.MinReplicas
 
@@ -241,7 +240,7 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "newMin", newMin)
 	}
 
-	return true,  nil
+	return true, nil
 }
 
 func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
@@ -269,7 +268,6 @@ func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
 		*hpa.Spec.TargetCPUUtilizationPercentage,
 		lastScaleTime)
 }
-
 
 func toStringTuner(hpatuner webappv1.HpaTuner) string {
 

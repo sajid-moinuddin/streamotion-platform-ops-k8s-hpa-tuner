@@ -118,7 +118,7 @@ docker-build-phpload:
 docker-push:
 	docker push ${IMG}
 
-list:
+help:
 	@grep '^[^#[:space:]].*:' Makefile
 
 # find or download controller-gen
