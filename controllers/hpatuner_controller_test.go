@@ -24,6 +24,7 @@ const interval = time.Second * 2
 var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	logger := log.New(GinkgoWriter, "INFO: ", log.Lshortfile)
 	ctx := context.Background()
+	fetchedLoadGeneratorPod := &v12.Pod{}
 
 	BeforeEach(func() {
 		k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
@@ -31,9 +32,9 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	})
 
 	AfterEach(func() {
-		//if len(_testGeneratedResource.Namespace) > 0 {
-		//	k8sClient.Delete(ctx, _testGeneratedResource)
-		//}
+		if fetchedLoadGeneratorPod.Generation != 0 {
+			k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
+		}
 	})
 
 	Context("HpaTuner Controller Tests", func() {
@@ -76,13 +77,13 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("WIP: Test HpaMin Is changed and locked with desired", func() {
+		It("Test HpaMin Is changed and locked with desired", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
 			toCreateHpa.Spec.MinReplicas = new(int32)
 			*toCreateHpa.Spec.MinReplicas =  1
-			toCreateHpa.Spec.MaxReplicas = 10
+			toCreateHpa.Spec.MaxReplicas = 15
 
 			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
 
@@ -96,8 +97,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			time.Sleep(time.Second * 5)
 
 			loadGeneratorPod := generateLoadPod()
-			Expect(k8sClient.Create(ctx, &loadGeneratorPod)).Should(Succeed())
-			fetchedLoadGeneratorPod := &v12.Pod{}
+			Expect(k8sClient.Create(ctx, &loadGeneratorPod)).Should(Succeed()) //this starts the load
 
 			Eventually(func() bool{
 				podName := types.NamespacedName{Name: loadGeneratorPod.Name, Namespace: loadGeneratorPod.Namespace}
@@ -117,11 +117,15 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			err := k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
 			Expect(err).Should(BeNil())
 
+
 			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
 			})
 
-			time.Sleep(time.Minute * 10)
+			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
+				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
+			})
+
 		})
 
 		It("Test Decision From Decision Service is Honored", func() {
@@ -189,7 +193,7 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(
 			err := k8sClient.Get(ctx, name, &fetchedHpa)
 			Expect(err).Should(BeNil())
 
-			log.Printf("------------------fetched: %v/%v", fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas)
+			log.Printf("--fetched hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v", fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas)
 
 			return condition(&fetchedHpa)
 		}, eventuallyTimeOut, interval).Should(BeTrue())
