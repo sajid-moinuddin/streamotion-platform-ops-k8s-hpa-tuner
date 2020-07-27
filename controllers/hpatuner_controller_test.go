@@ -34,11 +34,13 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	AfterEach(func() {
 		if fetchedLoadGeneratorPod.Generation != 0 {
 			k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
+			k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
+			k8sClient.DeleteAllOf(ctx, &webappv1.HpaTuner{}, client.InNamespace("phpload"))
 		}
 	})
 
 	Context("HpaTuner Controller Tests", func() {
-		It("Test HpaMin Is overridden by HpaTunerMin", func() {
+		It("T1: Test HpaMin Is overridden by HpaTunerMin", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
@@ -77,7 +79,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("Test HpaMin Is changed and locked with desired", func() {
+		It("T2: Test HpaMin Is changed and locked with desired", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
@@ -128,7 +130,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("Test Decision From Decision Service is Honored", func() {
+		It("T3: Test Decision From Decision Service is Honored", func() {
 			logger.Println("----------------start test-----------")
 
 			fakeDecisionService.FakeDecision.MinReplicas = 13

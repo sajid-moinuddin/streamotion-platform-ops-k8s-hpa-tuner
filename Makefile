@@ -80,8 +80,8 @@ kind-tests:
 #Start your test with It("WIP:... and only that will be executed
 focus-test:
 	ginkgo -v -focus="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
-
-
+	kubectl delete hpa -n phpload --all
+	kubectl
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -

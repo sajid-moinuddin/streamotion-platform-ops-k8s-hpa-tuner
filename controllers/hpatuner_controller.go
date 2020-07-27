@@ -179,6 +179,23 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 	return nil
 }
 
+func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
+	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
+
+	if tuner.Spec.UseDecisionService && r.scalingDecisionService == nil {
+		r.Log.Error(errors.New("Null Decision Service!!!"), fmt.Sprintf("Wants to use decision service but decisionservice is nil! %v", tuner.Name))
+		return -1
+	}
+
+	if tuner.Spec.UseDecisionService {
+		decision := r.scalingDecisionService.scalingDecision()
+		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
+		return decision.MinReplicas
+	}
+
+	return -1
+}
+
 func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) (bool, int32) {
 	currentDesired := hpa.Status.DesiredReplicas
 	currentHpaMin := *hpa.Spec.MinReplicas
@@ -291,22 +308,6 @@ func max(nums ...int32) int32 {
 	return max
 }
 
-func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) int32 {
-	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
-
-	if tuner.Spec.UseDecisionService && r.scalingDecisionService == nil {
-		r.Log.Error(errors.New("Null Decision Service!!!"), fmt.Sprintf("Wants to use decision service but decisionservice is nil! %v", tuner.Name))
-		return -1
-	}
-
-	if tuner.Spec.UseDecisionService {
-		decision := r.scalingDecisionService.scalingDecision()
-		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
-		return decision.MinReplicas
-	}
-
-	return -1
-}
 
 func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) bool {
 	if elapsedDownscaleForbiddenWindow(hpa, tuner) {
