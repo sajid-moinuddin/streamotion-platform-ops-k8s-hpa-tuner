@@ -64,21 +64,6 @@ type HpaTunerReconciler struct {
 
 }
 
-type ScalingDecisionService interface {
-	scalingDecision() ScalingDecision
-}
-
-//// HpaTunerStatus defines the observed state of HpaTuner
-//type HpaTunerStatus struct {
-//	// Last time a scaleup event was observed
-//	LastUpScaleTime *metav1.Time `json:"lastUpScaleTime,omitempty"`
-//	// Last time a scale-down event was observed
-//	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
-//}
-
-type ScalingDecision struct {
-	MinReplicas int32 `json:"number"`
-}
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners/status,verbs=get;update;patch
@@ -187,8 +172,11 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 		return -1
 	}
 
+
+	hpaName := types.NamespacedName{Name: hpa.Name, Namespace: hpa.Namespace}.String()
+
 	if tuner.Spec.UseDecisionService {
-		decision := r.scalingDecisionService.scalingDecision()
+		decision := r.scalingDecisionService.scalingDecision(hpaName, *hpa.Spec.MinReplicas, hpa.Status.CurrentReplicas)
 		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
 	}
@@ -341,7 +329,7 @@ func isHpaMinAlreadyInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.Hori
 
 //TODO: need to/can use informer ?? otherwise will make get/list options directly to api , can put pressure on api-server, probably should be fine (api-server creates backpressure too)
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
+	log.Print("************************************SETUP******************")
 	clientConfig := mgr.GetConfig()
 	clientSet, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
@@ -358,6 +346,11 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.clientSet = clientSet
 	r.eventRecorder = recorder
 	r.k8sHpaDownScaleTime = time.Minute * 30
+
+	if r.scalingDecisionService == nil { //nil check needed to preserve the stub in testing
+		r.scalingDecisionService = CreateScalingDecisionService()
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.HpaTuner{}).
 		Complete(r)

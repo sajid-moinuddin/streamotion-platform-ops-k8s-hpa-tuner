@@ -153,18 +153,18 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
 			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
-				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
+				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
 			})
 
 			fakeDecisionService.FakeDecision.MinReplicas = 16
 			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
-				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
+				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
 			})
 
 			////TODO: how to change kind to make HPA change desired count faster?? below takes too long as it waits for k8s to scale down `desiredCount` after hpa min is changed
 			fakeDecisionService.FakeDecision.MinReplicas = 7
 			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
-				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision().MinReplicas
+				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
 				return hpaDownScaled
 			})
 
