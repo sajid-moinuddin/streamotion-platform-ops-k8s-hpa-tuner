@@ -36,19 +36,6 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		k8sClient.Delete(ctx, loadgenerator)
 
-		Eventually(func() bool{
-			var _ref  v12.Pod
-			err := k8sClient.Get(ctx, types.NamespacedName{
-				Namespace: loadgenerator.Namespace,
-				Name:      loadgenerator.Name,
-			}, &_ref)
-
-			return err != nil
-
-		}).Should(BeTrue())
-
-
-
 		k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
 		k8sClient.DeleteAllOf(ctx, &webappv1.HpaTuner{}, client.InNamespace("phpload"))
 
@@ -88,13 +75,13 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
 			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that of hpatuner.min
+			verifier(fmt.Sprintf("verify hpa.min was upped to match that of hpatuner.min %v", _hpaTunerRef.Spec.MinReplicas),func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that of hpatuner.min
 				log.Printf("testing ")
 				return *fetchedHpa.Spec.MinReplicas == _hpaTunerRef.Spec.MinReplicas
 			})
 
 			//TODO: find better assert mechanism, the below will fail to which assert in those `&&` fails
-			Eventually(func() bool { //verify event was published to hpatuner
+			Eventually(func() bool { // event was published to hpatuner
 				opts := v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.namespace=%s,involvedObject.uid=%s", toCreateTuner.Name, toCreateTuner.Namespace, _hpaTunerRef.UID)}
 				events, _ := clientSet.CoreV1().Events(toCreateTuner.Namespace).List(opts)
 				log.Print(events.Items[0])
@@ -125,20 +112,22 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
-				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+			decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+			verifier(fmt.Sprintf("verify hpa.min was upped to match that from decisionService %v", decision.MinReplicas), func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool {
 				return *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
 			})
 
 			fakeDecisionService.FakeDecision.MinReplicas = 16
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
+			scalingDecision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+			verifier(fmt.Sprintf("verify hpa.min was changed again when the decision service gave different decision %v", scalingDecision.MinReplicas), func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
 				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
 				return *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
 			})
 
 			////TODO: how to change kind to make HPA change desired count faster?? below takes too long as it waits for k8s to scale down `desiredCount` after hpa min is changed
 			fakeDecisionService.FakeDecision.MinReplicas = 7
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
+			d2, _ := fakeDecisionService.scalingDecision("", 0, 0)
+			verifier(fmt.Sprintf("verify hpa.min was changed again when the decision service gave different decision %v", d2.MinReplicas), func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
 				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
 				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
 				return hpaDownScaled
@@ -184,7 +173,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name:toCreateHpa.Name})
 
-			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
+			hpaVerifier(fmt.Sprintf("ensure min replica goes up to %v", toCreateHpa.Spec.MaxReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
 				return *autoscaler.Spec.MinReplicas == toCreateHpa.Spec.MaxReplicas
 			})
 
@@ -192,11 +181,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			Expect(err).Should(BeNil())
 
 
-			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
-				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
-			})
-
-			hpaVerifier(func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
+			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas ),func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
 			})
 
@@ -208,21 +193,21 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 /**
 Curry Function, a bit of functional voodo but nicely hides the details of hpa fetch and reduce duplication, so necessary evil
 */
-func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(condition func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool) {
+func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(testname string, condition func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool) {
 	eventuallyTimeOut := timeout
 
 	if len(optTimeout) > 0 {
 		eventuallyTimeOut = optTimeout[0]
 	}
 
-	return func(condition func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool) {
+	return func(testname string, condition func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool) {
 		Eventually(func() bool {
 			ctx := context.Background()
 			fetchedHpa := scaleV1.HorizontalPodAutoscaler{}
 			err := k8sClient.Get(ctx, name, &fetchedHpa)
 			Expect(err).Should(BeNil())
 
-			log.Printf("--fetched hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v", fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas)
+			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v",testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas)
 
 			return condition(&fetchedHpa)
 		}, eventuallyTimeOut, interval).Should(BeTrue())

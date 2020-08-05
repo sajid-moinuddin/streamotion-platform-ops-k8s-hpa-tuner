@@ -28,6 +28,7 @@ type ScalingDecision struct {
 
 //factory method (TODO: whats the GO style for factory / di?)
 func CreateScalingDecisionService() ScalingDecisionService {
+	log.Printf("****** Creating Decision Service!! ")
 	decisionServiceEndPoint, exists := os.LookupEnv("DECISION_SERVICE_ENDPOINT")
 
 	if exists {
