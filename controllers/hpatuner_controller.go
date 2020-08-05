@@ -180,12 +180,15 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 	if tuner.Spec.UseDecisionService {
 		decision, err := r.scalingDecisionService.scalingDecision(hpaName, *hpa.Spec.MinReplicas, hpa.Status.CurrentReplicas)
 
-		if err == nil {
+		if err != nil {
+			r.Log.Error(err, "failed to fetch result from decisionservice")
 			return -1
 		}
 
-		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
+		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
+	} else {
+		r.Log.Info("Not using decision service") //todo: debug
 	}
 
 	return -1
