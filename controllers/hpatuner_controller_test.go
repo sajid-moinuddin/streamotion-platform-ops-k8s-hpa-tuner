@@ -18,7 +18,7 @@ import (
 	// "hpa-tuner/controllers"
 )
 
-const timeout = time.Second * 60 * 10
+const timeout = time.Second * 60 * 5
 const interval = time.Second * 2
 
 var _ = Describe("HpatunerController Tests - Happy Paths", func() {
@@ -27,8 +27,31 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	fetchedLoadGeneratorPod := &v12.Pod{}
 
 	BeforeEach(func() {
+		loadgenerator := &v12.Pod{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "load-generator",
+				Namespace: "phpload",
+			},
+		}
+
+		k8sClient.Delete(ctx, loadgenerator)
+
+		Eventually(func() bool{
+			var _ref  v12.Pod
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: loadgenerator.Namespace,
+				Name:      loadgenerator.Name,
+			}, &_ref)
+
+			return err != nil
+
+		}).Should(BeTrue())
+
+
+
 		k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
 		k8sClient.DeleteAllOf(ctx, &webappv1.HpaTuner{}, client.InNamespace("phpload"))
+
 	})
 
 	AfterEach(func() {
@@ -66,6 +89,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			verifier := verifierCurry(hpaNamespacedName, timeout*10)
 
 			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that of hpatuner.min
+				log.Printf("testing ")
 				return *fetchedHpa.Spec.MinReplicas == _hpaTunerRef.Spec.MinReplicas
 			})
 
@@ -79,7 +103,55 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("T2: Test HpaMin Is changed and locked with desired", func() {
+		It("T3: Test Decision From Decision Service is Honored", func() {
+			logger.Println("----------------start test-----------")
+
+			fakeDecisionService.FakeDecision.MinReplicas = 13
+
+			toCreateHpa := generateHpa()
+			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
+			toCreateTuner := generateHpaTuner()
+			toCreateTuner.Spec.UseDecisionService = true
+
+			Expect(k8sClient.Create(ctx, &toCreateTuner)).Should(Succeed())
+
+			logger.Printf("hpaMin: %v , tunerMin: %v", *toCreateHpa.Spec.MinReplicas, toCreateTuner.Spec.MinReplicas)
+
+			time.Sleep(time.Second * 5)
+
+			//TODO: more asserts!
+			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
+			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
+
+			verifier := verifierCurry(hpaNamespacedName, timeout*10)
+
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
+				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+				return *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
+			})
+
+			fakeDecisionService.FakeDecision.MinReplicas = 16
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
+				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+				return *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
+			})
+
+			////TODO: how to change kind to make HPA change desired count faster?? below takes too long as it waits for k8s to scale down `desiredCount` after hpa min is changed
+			fakeDecisionService.FakeDecision.MinReplicas = 7
+			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
+				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
+				return hpaDownScaled
+			})
+
+			//*This takes forever to pass (k8s takes long time to downscale hpa)
+			//verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool {
+			//	log.Printf("--: %v %v %v", fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas, fakeDecisionService.scalingDecision().MinReplicas)
+			//	return fetchedHpa.Status.CurrentReplicas == fakeDecisionService.scalingDecision().MinReplicas
+			//})
+		})
+
+		It("WIP: Test HpaMin Is changed and locked with desired", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
@@ -130,51 +202,6 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("T3: Test Decision From Decision Service is Honored", func() {
-			logger.Println("----------------start test-----------")
-
-			fakeDecisionService.FakeDecision.MinReplicas = 13
-
-			toCreateHpa := generateHpa()
-			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
-			toCreateTuner := generateHpaTuner()
-			toCreateTuner.Spec.UseDecisionService = true
-
-			Expect(k8sClient.Create(ctx, &toCreateTuner)).Should(Succeed())
-
-			logger.Printf("hpaMin: %v , tunerMin: %v", *toCreateHpa.Spec.MinReplicas, toCreateTuner.Spec.MinReplicas)
-
-			time.Sleep(time.Second * 5)
-
-			//TODO: more asserts!
-			//see: https://github.com/microsoft/k8s-cronjob-prescaler/blob/fc649b04493d2157a6ddc29a418a71eac8ec0c83/controllers/prescaledcronjob_controller_test.go#L187
-			hpaNamespacedName := types.NamespacedName{Namespace: toCreateTuner.Namespace, Name: toCreateTuner.Spec.ScaleTargetRef.Name}
-
-			verifier := verifierCurry(hpaNamespacedName, timeout*10)
-
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was upped to match that from decisionService
-				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
-			})
-
-			fakeDecisionService.FakeDecision.MinReplicas = 16
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
-				return *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
-			})
-
-			////TODO: how to change kind to make HPA change desired count faster?? below takes too long as it waits for k8s to scale down `desiredCount` after hpa min is changed
-			fakeDecisionService.FakeDecision.MinReplicas = 7
-			verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //verify hpa.min was changed again when the decision service gave different decision
-				hpaDownScaled := *fetchedHpa.Spec.MinReplicas == fakeDecisionService.scalingDecision("", 0, 0).MinReplicas
-				return hpaDownScaled
-			})
-
-			//*This takes forever to pass (k8s takes long time to downscale hpa)
-			//verifier(func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool {
-			//	log.Printf("--: %v %v %v", fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas, fakeDecisionService.scalingDecision().MinReplicas)
-			//	return fetchedHpa.Status.CurrentReplicas == fakeDecisionService.scalingDecision().MinReplicas
-			//})
-		})
-
 	})
 })
 
@@ -207,7 +234,7 @@ func generateLoadPod() v12.Pod {
 
 	containers[0] = v12.Container{
 		Name:                     "load-generator",
-		Image:                    "busybox",
+		Image:                    "busybox:1.32.0",
 		Command:                  []string {"/bin/sh"},
 		Args:                     []string{"-c","while true; do wget -q -O-  http://php-apache; done"},
 	}

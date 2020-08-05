@@ -176,7 +176,12 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 	hpaName := types.NamespacedName{Name: hpa.Name, Namespace: hpa.Namespace}.String()
 
 	if tuner.Spec.UseDecisionService {
-		decision := r.scalingDecisionService.scalingDecision(hpaName, *hpa.Spec.MinReplicas, hpa.Status.CurrentReplicas)
+		decision, err := r.scalingDecisionService.scalingDecision(hpaName, *hpa.Spec.MinReplicas, hpa.Status.CurrentReplicas)
+
+		if err == nil {
+			return -1
+		}
+
 		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
 	}
