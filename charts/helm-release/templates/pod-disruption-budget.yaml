@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    draft: {{ default "draft-app" .Values.draft }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+  name: {{ template "fullname" . }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+{{- end }}
