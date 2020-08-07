@@ -57,7 +57,7 @@ type FakeScalingDecisionService struct {
 	FakeDecision *ScalingDecision
 }
 
-func (s FakeScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision,error) {
+func (s FakeScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
 	//println(fmt.Printf("-------------object ref: %v" , s.FakeDecision))
 	return s.FakeDecision, nil
 }

@@ -24,3 +24,4 @@ bin
 *~
 .vscode
 streamotion-platform-ops-k8s-hpa-tuner.iml
+controllers/controllers.coverprofile

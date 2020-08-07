@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-
 	//. "github.com/onsi/gomega"
 )
 
@@ -28,8 +27,7 @@ var _ = Describe("ScalingDecisionService", func() {
 
 			log.Printf("----------%v", ts.URL)
 
-
-			os.Setenv("DECISION_SERVICE_ENDPOINT", ts.URL + "/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa")
+			os.Setenv("DECISION_SERVICE_ENDPOINT", ts.URL+"/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa")
 
 			//os.Setenv("DECISION_SERVICE_ENDPOINT", "http://localhost:8080")
 
