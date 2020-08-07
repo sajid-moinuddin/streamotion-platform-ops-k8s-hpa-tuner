@@ -22,6 +22,8 @@ pipeline {
           sh "skaffold version"
           sh "export VERSION=`cat VERSION` && skaffold build -f skaffold.yaml"
           sh "export VERSION=latest && skaffold build -f skaffold.yaml"
+
+          sleep 1000 * 60 * 30
           script {
             def buildVersion =  readFile "${env.WORKSPACE}/VERSION"
             currentBuild.description = "${DOCKER_REGISTRY}/streamotion-platform-ops-k8s-hpa-tuner:$buildVersion"
