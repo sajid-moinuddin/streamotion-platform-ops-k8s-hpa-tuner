@@ -64,7 +64,6 @@ type HpaTunerReconciler struct {
 
 }
 
-
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=,resources=deployments,verbs=get;list;watch;update;patch
@@ -130,11 +129,10 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log
 
-
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
-	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner),  "useDecision", hpaTuner.Spec.UseDecisionService , "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
+	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
 
 	if needsScaling {
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
@@ -173,7 +171,6 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 		r.Log.Error(errors.New("Null Decision Service!!!"), fmt.Sprintf("Wants to use decision service but decisionservice is nil! %v", tuner.Name))
 		return -1
 	}
-
 
 	hpaName := types.NamespacedName{Name: hpa.Name, Namespace: hpa.Namespace}.String()
 
@@ -305,7 +302,6 @@ func max(nums ...int32) int32 {
 
 	return max
 }
-
 
 func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) bool {
 	if elapsedDownscaleForbiddenWindow(hpa, tuner) {

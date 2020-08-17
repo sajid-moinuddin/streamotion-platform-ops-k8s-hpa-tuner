@@ -33,6 +33,8 @@ manager: generate fmt vet
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
+	export DECISION_SERVICE_ENDPOINT="http://localhost:8080/"
+	export METRICS_SERVER_ADDR="localhost:8999"
 	go run ./main.go
 
 # Install CRDs into a cluster

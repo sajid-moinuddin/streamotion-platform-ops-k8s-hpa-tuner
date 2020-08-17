@@ -1,0 +1,16 @@
+apiVersion: webapp.streamotion.com.au/v1
+kind: HpaTuner
+metadata:
+  name: php-apache-tuner
+  namespace: phpload
+spec:
+  downscaleForbiddenWindowSeconds: 30
+  maxReplicas: 1000
+  minReplicas: 1
+  scaleTargetRef:
+    kind: HorizontalPodAutoscaler
+    name: php-apache
+  scaleUpLimitFactor: 2
+  upscaleForbiddenWindowAfterDownscaleSeconds: 600
+  useDecisionService: true
+
