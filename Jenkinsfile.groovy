@@ -9,7 +9,23 @@ pipeline {
   }
 
   stages {
+    stage('Test') {
+      when {
+        branch 'PR-*'
+      }
+      steps {
+        container('maven') {
+          sh "make kind-test-setup"
+          sh "make kind-tests"
+        }
+      }
+    }
+
+
     stage('Push To ECR') {
+      when {
+        branch 'master'
+      }
       steps {
         container('maven') {
 
