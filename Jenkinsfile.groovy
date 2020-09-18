@@ -1,6 +1,6 @@
 pipeline {
   agent {
-      label "streamotion-maven"
+      label "go"
   }
 
   environment {
@@ -14,7 +14,7 @@ pipeline {
         branch 'PR-*'
       }
       steps {
-        container('maven') {
+        container('go') {
           sh "make kind-test-setup"
           sh "make kind-tests"
         }
@@ -27,7 +27,7 @@ pipeline {
         branch 'master'
       }
       steps {
-        container('maven') {
+        container('go') {
 
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
