@@ -17,18 +17,26 @@ limitations under the License.
 package main
 
 import (
-	"flag"
-	"os"
+	"log"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	webappv1 "hpa-tuner/api/v1"
-	"hpa-tuner/controllers"
+	"hpa-tuner/internal/controllers"
+	Flags "hpa-tuner/internal/flags"
+	"hpa-tuner/internal/wiring"
+
+	"go.uber.org/zap"
 	// +kubebuilder:scaffold:imports
+)
+
+const (
+	appName   = "hpa-tuner"
+	gitCommit = "dirty"
+	version   = "devbuild"
 )
 
 var (
@@ -44,26 +52,32 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	flag.Parse()
+	var cfg wiring.Config
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	app := Flags.Flags(appName, gitCommit, version, &cfg)
+	if app == nil {
+		log.Fatalf("Failed to parse flags")
+	}
+
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Unable to create logger: %s", err.Error())
+	}
+
+	logger.Info("Initialising")
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-		LeaderElection:     enableLeaderElection,
+		// TODO: Use flags for the ID
+		// TODO: Use flags for the port
+		LeaderElection:     cfg.EnableLeaderElection,
 		LeaderElectionID:   "2ed5900d.streamotion.com.au",
+		MetricsBindAddress: cfg.MetricsAddr,
+		Port:               9443,
+		Scheme:             scheme,
 	})
+
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		logger.Fatal("unable to start manager: %s", zap.Error(err))
 	}
 
 	if err = (&controllers.HpaTunerReconciler{
@@ -71,14 +85,13 @@ func main() {
 		Log:    ctrl.Log.WithName("controllers").WithName("HpaTuner"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "HpaTuner")
-		os.Exit(1)
+		logger.Fatal("unable to create controller", zap.Error(err))
 	}
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("starting manager")
+	logger.Info("starting manager")
+
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		logger.Fatal("problem running manager", zap.Error(err))
 	}
 }

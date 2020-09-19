@@ -20,17 +20,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/client-go/kubernetes/scheme"
+
+	webappv1 "hpa-tuner/api/v1"
 
 	"github.com/go-logr/logr"
 	"github.com/golang/glog"
-	webappv1 "hpa-tuner/api/v1"
 	scaleV1 "k8s.io/api/autoscaling/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -259,8 +261,7 @@ func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
 	var lastScaleTime string
 
 	if hpa.Status.LastScaleTime != nil {
-		//lastScaleTime = string(time.Since(hpa.Status.LastScaleTime.Time)) - does not work on 1.5
-		lastScaleTime = time.Since(hpa.Status.LastScaleTime.Time).String()
+		lastScaleTime = string(time.Since(hpa.Status.LastScaleTime.Time))
 	} else {
 		lastScaleTime = "NA"
 	}

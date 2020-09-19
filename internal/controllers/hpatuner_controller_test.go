@@ -3,15 +3,17 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 
 	webappv1 "hpa-tuner/api/v1"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"log"
@@ -157,7 +159,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			time.Sleep(time.Second * 5)
 
-			loadGeneratorPod := generateLoadPod("t5")
+			loadGeneratorPod := generateLoadPod()
 			Expect(k8sClient.Create(ctx, &loadGeneratorPod)).Should(Succeed()) //this starts the load
 
 			Eventually(func() bool {
@@ -180,62 +182,6 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				return *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
-			})
-
-		})
-
-		It("T6: Test lower min while load taking place", func() {
-			logger.Println("----------------start test-----------")
-			fakeDecisionService.FakeDecision.MinReplicas = 15
-
-			toCreateHpa := generateHpa()
-			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
-			toCreateTuner := generateHpaTuner()
-			toCreateTuner.Spec.MinReplicas = 1
-			toCreateTuner.Spec.UseDecisionService = true
-
-			Expect(k8sClient.Create(ctx, &toCreateTuner)).Should(Succeed())
-
-			logger.Printf("hpaMin: %v , tunerMin: %v", *toCreateHpa.Spec.MinReplicas, toCreateTuner.Spec.MinReplicas)
-
-			time.Sleep(time.Second * 5)
-
-			loadGeneratorPod := generateLoadPod("t6")
-			Expect(k8sClient.Create(ctx, &loadGeneratorPod)).Should(Succeed()) //this starts the load
-
-			Eventually(func() bool {
-				podName := types.NamespacedName{Name: loadGeneratorPod.Name, Namespace: loadGeneratorPod.Namespace}
-
-				err := k8sClient.Get(ctx, podName, fetchedLoadGeneratorPod)
-				Expect(err).Should(BeNil())
-
-				return fetchedLoadGeneratorPod.Status.ContainerStatuses != nil && fetchedLoadGeneratorPod.Status.ContainerStatuses[0].Ready == true
-			}, timeout, interval).Should(BeTrue())
-
-			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name})
-
-			hpaVerifier(fmt.Sprintf("ensure replica count goes over %v", *toCreateHpa.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
-				return *autoscaler.Spec.MinReplicas == fakeDecisionService.FakeDecision.MinReplicas && autoscaler.Status.CurrentReplicas >= *toCreateHpa.Spec.MinReplicas
-			})
-
-			fakeDecisionService.FakeDecision.MinReplicas = 1
-			hpaVerifier("verify downscale happens while under load but current stays high", func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
-				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
-
-				hpaMinReduced := *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
-				hpaStillHasHighReplicas := fetchedHpa.Status.CurrentReplicas > decision.MinReplicas
-				return hpaMinReduced && hpaStillHasHighReplicas
-			})
-
-			logger.Printf("stopping the load")
-
-			err := k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
-			Expect(err).Should(BeNil())
-
-			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
-				hpaMinReduced := *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
-				hpaCurrentReplicasReduced := autoscaler.Status.CurrentReplicas < toCreateTuner.Spec.MaxReplicas
-				return hpaMinReduced && hpaCurrentReplicasReduced
 			})
 
 		})
@@ -267,11 +213,11 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(
 	}
 }
 
-func generateLoadPod(testname string) v12.Pod {
+func generateLoadPod() v12.Pod {
 	containers := [1]v12.Container{}
 
 	containers[0] = v12.Container{
-		Name:    "load-generator-" + testname,
+		Name:    "load-generator",
 		Image:   "busybox:1.32.0",
 		Command: []string{"/bin/sh"},
 		Args:    []string{"-c", "while true; do wget -q -O-  http://php-apache; done"},
@@ -283,13 +229,13 @@ func generateLoadPod(testname string) v12.Pod {
 			APIVersion: "v1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name:      "load-generator-" + testname,
+			Name:      "load-generator",
 			Namespace: "phpload",
 		},
 		Spec: v12.PodSpec{
 			Containers: []v12.Container{
 				{
-					Name:    "load-generator-" + testname,
+					Name:    "load-generator",
 					Image:   "busybox",
 					Command: []string{"/bin/sh"},
 					Args:    []string{"-c", "while true; do wget -q -O-  http://php-apache; done"},

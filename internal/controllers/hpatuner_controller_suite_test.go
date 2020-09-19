@@ -17,12 +17,13 @@ limitations under the License.
 package controllers
 
 import (
-	"github.com/onsi/gomega/gexec"
-	"k8s.io/client-go/kubernetes"
 	"path/filepath"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"testing"
 	"time"
+
+	"github.com/onsi/gomega/gexec"
+	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -57,7 +58,7 @@ type FakeScalingDecisionService struct {
 	FakeDecision *ScalingDecision
 }
 
-func (s FakeScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision,error) {
+func (s FakeScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
 	//println(fmt.Printf("-------------object ref: %v" , s.FakeDecision))
 	return s.FakeDecision, nil
 }
@@ -109,7 +110,7 @@ var _ = BeforeSuite(func(done Done) {
 	clientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	controllerLog := ctrl.Log.WithName("controllers").WithName("Run")
+	controllerLog := ctrl.Log.WithName("controller").WithName("Run")
 
 	fakeDecisionService = FakeScalingDecisionService{
 		FakeDecision: &ScalingDecision{MinReplicas: 7},
