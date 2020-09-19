@@ -84,7 +84,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("HpaTuner"),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, logger, &cfg); err != nil {
 		logger.Fatal("unable to create controller", zap.Error(err))
 	}
 	// +kubebuilder:scaffold:builder

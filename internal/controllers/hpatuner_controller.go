@@ -20,14 +20,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes/scheme"
 
 	webappv1 "hpa-tuner/api/v1"
+	"hpa-tuner/internal/wiring"
 
 	"github.com/go-logr/logr"
 	"github.com/golang/glog"
@@ -43,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// TODO: Move magic numbers, probably better as flags
 const (
 	defaultSyncPeriod                            = time.Second * 15
 	defaultTargetCPUUtilizationPercentage  int32 = 80
@@ -56,14 +58,13 @@ const (
 // HpaTunerReconciler reconciles a HpaTuner object
 type HpaTunerReconciler struct {
 	client.Client
-	Log                    logr.Logger
-	Scheme                 *runtime.Scheme
-	eventRecorder          record.EventRecorder
 	clientSet              kubernetes.Interface
-	syncPeriod             time.Duration
-	scalingDecisionService ScalingDecisionService
+	eventRecorder          record.EventRecorder
 	k8sHpaDownScaleTime    time.Duration //time takes for k8s to change desired count when cpu is idle
-
+	Log                    logr.Logger
+	scalingDecisionService ScalingDecisionService
+	Scheme                 *runtime.Scheme
+	syncPeriod             time.Duration
 }
 
 // +kubebuilder:rbac:groups=webapp.streamotion.com.au,resources=hpatuners,verbs=get;list;watch;create;update;patch;delete
@@ -72,9 +73,8 @@ type HpaTunerReconciler struct {
 // +kubebuilder:rbac:groups=,resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=,resources=horizontalpodautoscalers,verbs=get;list;watch
 
+// Reconcile is a method to hide k8s controller details. Main calculation is delegated after k8s objects are fetched
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	/*template method to hide k8s controller details, main calculation is delegated after k8s objects are fetched*/
-
 	ctx := context.Background()
 	log := r.Log.WithValues("hpatuner", req.NamespacedName)
 
@@ -83,6 +83,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
+	// TODO: Use debug
 	log.Info("Reconcile: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
 
 	// your logic here
@@ -96,7 +97,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	log.Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
 
-	//TODO: check validity of hpaTuner
+	//TODO SM: check validity of hpaTuner
 
 	hpaNamespace := hpaTuner.Namespace
 	hpaName := hpaTuner.Spec.ScaleTargetRef.Name
@@ -127,7 +128,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return resRepeat, nil
 }
 
-// HpaTunerReconciler reconciles a HpaTuner object
+// ReconcileHPA reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log
 
@@ -170,7 +171,7 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
 
 	if tuner.Spec.UseDecisionService && r.scalingDecisionService == nil {
-		r.Log.Error(errors.New("Null Decision Service!!!"), fmt.Sprintf("Wants to use decision service but decisionservice is nil! %v", tuner.Name))
+		r.Log.Error(errors.New("null decision service"), fmt.Sprintf("wants to use decision service but decisionservice is nil %v", tuner.Name))
 		return -1
 	}
 
@@ -186,10 +187,12 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 
 		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
-	} else {
-		r.Log.Info("Not using decision service") //todo: debug
 	}
 
+	// TODO, SM: Debug
+	r.Log.Info("Not using decision service")
+
+	// TODO if -1 is an error, maybe better to return the error
 	return -1
 }
 
@@ -201,22 +204,19 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
 		if currentHpaMin < decisionServiceDesired {
 			return true, decisionServiceDesired
-		} else {
-			r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
-				"hpa", toString(hpa),
-				"lastDownscaled", tuner.Status.LastDownScaleTime)
-			return false, 0
 		}
-	} else {
-		newMax := max(decisionServiceDesired, actualMin, currentDesired)
-
-		if newMax > currentHpaMin {
-			return true, newMax
-		} else {
-			return false, 0
-		}
+		r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
+			"hpa", toString(hpa),
+			"lastDownscaled", tuner.Status.LastDownScaleTime)
+		return false, 0
 	}
 
+	newMax := max(decisionServiceDesired, actualMin, currentDesired)
+
+	if newMax > currentHpaMin {
+		return true, newMax
+	}
+	return false, 0
 }
 
 func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
@@ -230,6 +230,7 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 	return false
 }
 
+// UpdateHpaMin requires a better comment: TODO
 func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool, err error) {
 	r.Log.Info("UpdateHpaMin: ", "newMin", newMin)
 	oldMin := *hpa.Spec.MinReplicas
@@ -335,15 +336,19 @@ func isHpaMinAlreadyInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.Hori
 	return hpaTuner.Spec.MinReplicas < *hpa.Spec.MinReplicas
 }
 
-//TODO: need to/can use informer ?? otherwise will make get/list options directly to api , can put pressure on api-server, probably should be fine (api-server creates backpressure too)
-func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	log.Print("************************************SETUP******************")
-	clientConfig := mgr.GetConfig()
-	clientSet, err := kubernetes.NewForConfig(clientConfig)
+//TODO, SM: need to/can use informer ?? otherwise will make get/list options directly to api , can put pressure on api-server, probably should be fine (api-server creates backpressure too)
+
+// SetupWithManager does something Ben has not articulated into a single line to shut the linter up. TODO: Fix
+func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager, logger *zap.Logger, cfg *wiring.Config) error {
+	// TODO: Should this be debug
+	logger.Info("Performing setup")
+
+	clientSet, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal("encountered error at kubernetes.NewForConfig", zap.Error(err))
 	}
 
+	// TODO: golang says these should be shortform, but I won't understand it then.  We should be checking more for errors (when I figure out what the code does)
 	evtNamespacer := clientSet.CoreV1()
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(glog.Infof)
@@ -353,6 +358,7 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.syncPeriod = defaultSyncPeriod
 	r.clientSet = clientSet
 	r.eventRecorder = recorder
+	// TODO: magic number
 	r.k8sHpaDownScaleTime = time.Minute * 30
 
 	if r.scalingDecisionService == nil { //nil check needed to preserve the stub in testing

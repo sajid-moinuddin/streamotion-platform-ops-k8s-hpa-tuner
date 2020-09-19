@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"log"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,10 +33,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	webappv1 "hpa-tuner/api/v1"
+	"hpa-tuner/internal/wiring"
+
+	"go.uber.org/zap"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -63,6 +65,7 @@ func (s FakeScalingDecisionService) scalingDecision(name string, min int32, curr
 	return s.FakeDecision, nil
 }
 
+// TODO, BT: After updating for zap and wiring.config, this test no longer passes
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -72,9 +75,12 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logger := zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter))
+	logger, errl := zap.NewProduction()
+	if errl != nil {
+		log.Fatalf("Unable to create logger: %s", errl.Error())
+	}
 
-	logf.SetLogger(logger)
+	var wc wiring.Config
 
 	useCluster := true
 
@@ -125,7 +131,7 @@ var _ = BeforeSuite(func(done Done) {
 		clientSet:              clientSet,
 		syncPeriod:             0,
 		scalingDecisionService: fakeDecisionService,
-	}).SetupWithManager(k8sManager)
+	}).SetupWithManager(k8sManager, logger, &wc)
 
 	Expect(err).ToNot(HaveOccurred())
 
@@ -144,3 +150,5 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
+
+//logger *zap.Logger, cfg *wiring.Config) error {

@@ -10,9 +10,12 @@ import (
 	"time"
 )
 
+// ScalingDecisionService describes a <>. TODO: better comment
 type ScalingDecisionService interface {
 	scalingDecision(name string, min int32, current int32) (*ScalingDecision, error)
 }
+
+// TODO: Remove dead code
 
 //// HpaTunerStatus defines the observed state of HpaTuner
 //type HpaTunerStatus struct {
@@ -22,39 +25,42 @@ type ScalingDecisionService interface {
 //	LastDownScaleTime *metav1.Time `json:"lastDownScaleTime,omitempty"`
 //}
 
+// ScalingDecision describes a <> TODO: better comment
 type ScalingDecision struct {
 	MinReplicas int32 `json:"number"`
 }
 
-//factory method (TODO: whats the GO style for factory / di?)
+// CreateScalingDecisionService is a factory method (TODO, SM: whats the GO style for factory / di?)
 func CreateScalingDecisionService() ScalingDecisionService {
+	// TODO: pull in zap and wiring config
 	log.Printf("****** Creating Decision Service!! ")
 	decisionServiceEndPoint, exists := os.LookupEnv("DECISION_SERVICE_ENDPOINT")
 
 	if exists {
-		return HttpScalingDecisionService{
+		return HTTPScalingDecisionService{
 			decisionServiceEndpoint: decisionServiceEndPoint,
 			Client: &http.Client{
 				Timeout: time.Second * 10,
 			},
 		}
-	} else {
-		return nil
 	}
+	return nil
 }
 
-type HttpScalingDecisionService struct {
+// HTTPScalingDecisionService requires a better comment. TODO: Fix that
+type HTTPScalingDecisionService struct {
 	decisionServiceEndpoint string
 	Client                  *http.Client
 }
 
+// DecisionServiceResponse requires a better comment. TODO: Fix that
 type DecisionServiceResponse struct {
 	Decision struct {
 		MinCount int32 `json:"minCount"`
 	} `json:"decision"`
 }
 
-func (s HttpScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
+func (s HTTPScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
 	log.Printf("name %v , min: %v, current: %v", name, min, current)
 
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
