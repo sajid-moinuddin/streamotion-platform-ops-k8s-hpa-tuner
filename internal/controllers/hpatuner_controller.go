@@ -362,7 +362,7 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager, logger *zap.Logg
 	r.k8sHpaDownScaleTime = time.Minute * 30
 
 	if r.scalingDecisionService == nil { //nil check needed to preserve the stub in testing
-		r.scalingDecisionService = CreateScalingDecisionService()
+		r.scalingDecisionService = CreateScalingDecisionService(logger, cfg)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

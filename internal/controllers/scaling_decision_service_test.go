@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"hpa-tuner/internal/wiring"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -9,13 +10,22 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 	//. "github.com/onsi/gomega"
 )
 
 var _ = Describe("ScalingDecisionService", func() {
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Unable to create logger: %s", err.Error())
+	}
+
+	var cfg wiring.Config
+
 	Context("ScalingDecisionServiceTest", func() {
 		It("returns nil if endpoint is not defined in environment", func() {
-			decisionService := CreateScalingDecisionService()
+
+			decisionService := CreateScalingDecisionService(logger, &cfg)
 			Expect(decisionService).To(BeNil())
 		})
 
@@ -32,7 +42,7 @@ var _ = Describe("ScalingDecisionService", func() {
 
 			//os.Setenv("DECISION_SERVICE_ENDPOINT", "http://localhost:8080")
 
-			decisionService := CreateScalingDecisionService()
+			decisionService := CreateScalingDecisionService(logger, &cfg)
 
 			Expect(decisionService).ToNot(BeNil())
 

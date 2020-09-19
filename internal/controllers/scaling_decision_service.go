@@ -3,11 +3,14 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"hpa-tuner/internal/wiring"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // ScalingDecisionService describes a <>. TODO: better comment
@@ -31,7 +34,7 @@ type ScalingDecision struct {
 }
 
 // CreateScalingDecisionService is a factory method (TODO, SM: whats the GO style for factory / di?)
-func CreateScalingDecisionService() ScalingDecisionService {
+func CreateScalingDecisionService(logger *zap.Logger, cfg *wiring.Config) ScalingDecisionService {
 	// TODO: pull in zap and wiring config
 	log.Printf("****** Creating Decision Service!! ")
 	decisionServiceEndPoint, exists := os.LookupEnv("DECISION_SERVICE_ENDPOINT")
