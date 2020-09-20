@@ -82,7 +82,7 @@ func main() {
 
 	if err = (&controllers.HpaTunerReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("HpaTuner"),
+		Logger: logger,
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr, logger, &cfg); err != nil {
 		logger.Fatal("unable to create controller", zap.Error(err))

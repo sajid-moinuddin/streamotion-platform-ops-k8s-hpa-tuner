@@ -116,7 +116,10 @@ var _ = BeforeSuite(func(done Done) {
 	clientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	controllerLog := ctrl.Log.WithName("controller").WithName("Run")
+	logger, err2 := zap.NewProduction()
+	if err2 != nil {
+		log.Fatalf("Unable to create logger: %s", err2.Error())
+	}
 
 	fakeDecisionService = FakeScalingDecisionService{
 		FakeDecision: &ScalingDecision{MinReplicas: 7},
@@ -125,7 +128,7 @@ var _ = BeforeSuite(func(done Done) {
 	//register the controller to controller manager
 	err = (&HpaTunerReconciler{
 		Client:                 k8sClient,
-		Log:                    controllerLog,
+		Logger:                 logger,
 		Scheme:                 nil,
 		eventRecorder:          k8sManager.GetEventRecorderFor("hpa-tuner"),
 		clientSet:              clientSet,

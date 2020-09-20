@@ -47,7 +47,7 @@ func CreateScalingDecisionService(logger *zap.Logger, cfg *wiring.Config) Scalin
 		decisionServiceEndpoint: cfg.DecisionServiceEndpoint,
 		logger:                  logger,
 	}
-	return nil
+
 }
 
 // HTTPScalingDecisionService requires a better comment. TODO: Fix that

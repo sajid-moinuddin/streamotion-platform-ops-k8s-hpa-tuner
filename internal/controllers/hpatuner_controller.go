@@ -18,12 +18,11 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/golang/glog"
+	"github.com/prometheus/common/log"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -61,7 +60,7 @@ type HpaTunerReconciler struct {
 	clientSet              kubernetes.Interface
 	eventRecorder          record.EventRecorder
 	k8sHpaDownScaleTime    time.Duration //time takes for k8s to change desired count when cpu is idle
-	Log                    logr.Logger
+	Logger                 *zap.Logger
 	scalingDecisionService ScalingDecisionService
 	Scheme                 *runtime.Scheme
 	syncPeriod             time.Duration
@@ -76,15 +75,14 @@ type HpaTunerReconciler struct {
 // Reconcile is a method to hide k8s controller details. Main calculation is delegated after k8s objects are fetched
 func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	log := r.Log.WithValues("hpatuner", req.NamespacedName)
 
 	//hpatuner is a never ending forloop to keep on monitoring the hpa and action on it (until its deleted)
 	resRepeat := reconcile.Result{RequeueAfter: r.syncPeriod}
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
-	// TODO: Use debug
-	log.Info("Reconcile: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
+	// TODO: Use debug?
+	r.Logger.Info("Reconcile: ----------------------------------------------------------------------------------------------------", zap.Any("Namesapce", req.NamespacedName)) // to have clear separation between previous and current reconcile run
 
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
@@ -118,8 +116,10 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return resStop, nil
 	}
 	// -----------------------------------------------------------------------------------
-	log.Info("") // to have clear separation between previous and current reconcile run
-	log.Info("--end: ----------------------------------------------------------------------------------------------------")
+
+	// TODO: Use debug?
+	r.Logger.Info("") // to have clear separation between previous and current reconcile run
+	r.Logger.Info("--end: ----------------------------------------------------------------------------------------------------")
 
 	// resRepeat will be returned if we want to re-run reconcile process
 	// NB: we can't return non-nil err, as the "reconcile" msg will be added to the rate-limited queue
@@ -130,13 +130,12 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // ReconcileHPA reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
-	log := r.Log
 
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
 	//log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
-	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
+	r.Logger.Info("reconcile", zap.Any("hpa", hpa), zap.Any("tuner", *hpaTuner), zap.Any("useDecision", hpaTuner.Spec.UseDecisionService), zap.Any("decisionServiceDesired", decisionServiceDesired))
 
 	if needsScaling {
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
@@ -149,9 +148,9 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 			downscaleTarget := max(hpaTuner.Spec.MinReplicas, decisionServiceDesired)
 
 			if downscaleTarget == *hpa.Spec.MinReplicas {
-				log.V(2).Info("no action needed")
+				r.Logger.Info("no action needed")
 			} else {
-				log.Info("Need to UnlockMin")
+				r.Logger.Info("Need to UnlockMin")
 
 				updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
 				if updated {
@@ -159,10 +158,10 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 				}
 			}
 		} else {
-			log.Info("----hpa locked but scaledown condition not met")
+			r.Logger.Info("----hpa locked but scaledown condition not met")
 		}
 	} else {
-		log.V(1).Info("Nothing to do...")
+		r.Logger.Info("Nothing to do...")
 	}
 
 	return nil
@@ -172,7 +171,9 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
 
 	if tuner.Spec.UseDecisionService && r.scalingDecisionService == nil {
-		r.Log.Error(errors.New("null decision service"), fmt.Sprintf("wants to use decision service but decisionservice is nil %v", tuner.Name))
+		r.Logger.Error("null decision service wants to use decision service but decisionservice is nil", zap.Any("tuner", tuner.Name))
+
+		// TODO: Might be better to return the error
 		return -1
 	}
 
@@ -182,16 +183,16 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 		decision, err := r.scalingDecisionService.scalingDecision(hpaName, *hpa.Spec.MinReplicas, hpa.Status.CurrentReplicas)
 
 		if err != nil {
-			r.Log.Error(err, "failed to fetch result from decisionservice")
+			r.Logger.Error("failed to fetch result from decisionservice")
 			return -1
 		}
 
-		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
+		r.Logger.Info("Received From Decision Service: ", zap.Any("minReplica: ", decision.MinReplicas))
 		return decision.MinReplicas
 	}
 
 	// TODO, SM: Debug
-	r.Log.Info("Not using decision service")
+	r.Logger.Info("Not using decision service")
 
 	// TODO if -1 is an error, maybe better to return the error
 	return -1
@@ -206,9 +207,7 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 		if currentHpaMin < decisionServiceDesired {
 			return true, decisionServiceDesired
 		}
-		r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
-			// "hpa", toString(hpa),
-			"lastDownscaled", tuner.Status.LastDownScaleTime)
+		r.Logger.Info("Skipping upscale check as it was recently downscaled", zap.Any("hpa", hpa), zap.Any("lastDownscaled", tuner.Status.LastDownScaleTime))
 		return false, 0
 	}
 
@@ -233,7 +232,7 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 
 // UpdateHpaMin requires a better comment: TODO
 func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool, err error) {
-	r.Log.Info("UpdateHpaMin: ", "newMin", newMin)
+	r.Logger.Info("UpdateHpaMin: ", zap.Any("newMin", newMin))
 	oldMin := *hpa.Spec.MinReplicas
 
 	if oldMin == newMin { //must be some upstream calculation issue
@@ -242,7 +241,7 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 
 	hpa.Spec.MinReplicas = &newMin
 	if err := r.Client.Update(context.TODO(), hpa); err != nil {
-		r.Log.Error(err, "Failed to Update hpa Min", "newMin", newMin)
+		r.Logger.Error("Failed to Update hpa Min", zap.Any("newMin", newMin))
 	}
 
 	if oldMin > newMin {
@@ -253,36 +252,10 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
 	if err := r.Client.Update(context.TODO(), hpaTuner); err != nil {
-		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "newMin", newMin)
+		r.Logger.Error("Failed to Update hpaTuner LastUpScaleTime", zap.Any("newMin", newMin))
 	}
 
 	return true, nil
-}
-
-func toString(hpa *scaleV1.HorizontalPodAutoscaler) string {
-	var lastScaleTime string
-
-	if hpa.Status.LastScaleTime != nil {
-		lastScaleTime = string(time.Since(hpa.Status.LastScaleTime.Time))
-	} else {
-		lastScaleTime = "NA"
-	}
-
-	var currCPU int32
-
-	if hpa.Status.CurrentCPUUtilizationPercentage != nil {
-		currCPU = *hpa.Status.CurrentCPUUtilizationPercentage
-	} else {
-		currCPU = 0
-	}
-
-	return fmt.Sprintf("n: %v, pod: %v/%v, cpu: %v/%v last:%v",
-		hpa.Name,
-		*hpa.Spec.MinReplicas,
-		hpa.Status.DesiredReplicas,
-		currCPU,
-		*hpa.Spec.TargetCPUUtilizationPercentage,
-		lastScaleTime)
 }
 
 func toStringTuner(hpatuner webappv1.HpaTuner) string {
