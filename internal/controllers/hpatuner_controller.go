@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/golang/glog"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -30,8 +32,6 @@ import (
 	webappv1 "hpa-tuner/api/v1"
 	"hpa-tuner/internal/wiring"
 
-	"github.com/go-logr/logr"
-	"github.com/golang/glog"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -135,6 +135,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
+	//log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
 	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
 
 	if needsScaling {
@@ -206,7 +207,7 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 			return true, decisionServiceDesired
 		}
 		r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
-			"hpa", toString(hpa),
+			// "hpa", toString(hpa),
 			"lastDownscaled", tuner.Status.LastDownScaleTime)
 		return false, 0
 	}
@@ -319,7 +320,7 @@ func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutos
 
 func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
 
-	//todo, optionally take the idle cpu from hpatunerConfig
+	// TODO, SM optionally take the idle cpu from hpatunerConfig
 	if hpa.Status.CurrentCPUUtilizationPercentage == nil || *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
 		return true
 	}

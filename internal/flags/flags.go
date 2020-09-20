@@ -16,6 +16,7 @@ func Flags(name, gitCommit, version string, cfg *wiring.Config) *kingpin.Applica
 	app.Flag("loglevel", `log level: "debug", "info", "warn", "error", "dpanic", "panic", and "fatal".`).Short('l').Envar("LOG_LEVEL").Default("info").EnumVar(&cfg.LogLevel, "debug", "info", "warn", "error", "dpanic", "panic", "fatal")
 	app.Flag("tmetrics-addr", "The address the metric endpoint binds to").Short('m').Envar("METRICS_ADDR").StringVar(&cfg.MetricsAddr)
 
+	app.Flag("", "The deicion API endpoint").Short('d').Envar("DECISION_SERVICE_ENDPOINT").Default("").StringVar(&cfg.DecisionServiceEndpoint)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	return app

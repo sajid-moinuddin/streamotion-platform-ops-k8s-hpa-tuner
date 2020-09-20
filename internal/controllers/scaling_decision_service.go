@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -35,25 +34,27 @@ type ScalingDecision struct {
 
 // CreateScalingDecisionService is a factory method (TODO, SM: whats the GO style for factory / di?)
 func CreateScalingDecisionService(logger *zap.Logger, cfg *wiring.Config) ScalingDecisionService {
-	// TODO: pull in zap and wiring config
-	log.Printf("****** Creating Decision Service!! ")
-	decisionServiceEndPoint, exists := os.LookupEnv("DECISION_SERVICE_ENDPOINT")
 
-	if exists {
-		return HTTPScalingDecisionService{
-			decisionServiceEndpoint: decisionServiceEndPoint,
-			Client: &http.Client{
-				Timeout: time.Second * 10,
-			},
-		}
+	if cfg.DecisionServiceEndpoint == "" {
+		logger.Info("No decision endpoint supplied")
+		return nil
+	}
+
+	logger.Info("Using decision service", zap.String("endpoint", cfg.DecisionServiceEndpoint))
+
+	return HTTPScalingDecisionService{
+		Client:                  &http.Client{Timeout: time.Second * 10},
+		decisionServiceEndpoint: cfg.DecisionServiceEndpoint,
+		logger:                  logger,
 	}
 	return nil
 }
 
 // HTTPScalingDecisionService requires a better comment. TODO: Fix that
 type HTTPScalingDecisionService struct {
-	decisionServiceEndpoint string
 	Client                  *http.Client
+	decisionServiceEndpoint string
+	logger                  *zap.Logger
 }
 
 // DecisionServiceResponse requires a better comment. TODO: Fix that
@@ -64,9 +65,10 @@ type DecisionServiceResponse struct {
 }
 
 func (s HTTPScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
-	log.Printf("name %v , min: %v, current: %v", name, min, current)
+	s.logger.Info("scalingDecision", zap.String("name", name), zap.Int32("min", min), zap.Int32("current", current))
 
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
+	// TODO Handle error
 	req, _ := http.NewRequest("GET", s.decisionServiceEndpoint+"/api/HorizontalPodAutoscaler", nil)
 
 	q := req.URL.Query()
@@ -87,16 +89,16 @@ func (s HTTPScalingDecisionService) scalingDecision(name string, min int32, curr
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Fatal(err)
-		return nil, err
+		// TODO Should we 'die' (there was a log.Fatel here before)
+		s.logger.Fatal("scalingDecision", zap.Any("error", err))
 	}
 
-	log.Printf("resp: %v", string(responseData))
+	s.logger.Info("scalingDecision", zap.Any("response", responseData))
 
 	var responseObject DecisionServiceResponse
 	json.Unmarshal(responseData, &responseObject)
 
-	log.Printf("--response: %v", responseObject)
+	s.logger.Info("scalingDecision", zap.Any("--response", responseObject))
 
 	return &ScalingDecision{
 		MinReplicas: responseObject.Decision.MinCount,
