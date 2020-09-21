@@ -14,7 +14,7 @@ pipeline {
         branch 'PR-*'
       }
       steps {
-        container('go') {
+        container('streamotion-go') {
           sh "make kind-test-setup"
           sh "make kind-tests"
         }
