@@ -27,7 +27,7 @@ pipeline {
         branch 'master'
       }
       steps {
-        container('go') {
+        container('streamotion-go') {
 
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
