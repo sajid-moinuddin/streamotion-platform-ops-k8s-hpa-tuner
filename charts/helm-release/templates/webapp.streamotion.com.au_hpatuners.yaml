@@ -1,0 +1,118 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: hpatuners.webapp.streamotion.com.au
+spec:
+  group: webapp.streamotion.com.au
+  names:
+    kind: HpaTuner
+    listKind: HpaTunerList
+    plural: hpatuners
+    singular: hpatuner
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: HpaTuner is the Schema for the hpatuners API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: HpaTunerSpec defines the desired state of HpaTuner
+          properties:
+            downscaleForbiddenWindowSeconds:
+              format: int32
+              maximum: 600
+              minimum: 1
+              type: integer
+            maxReplicas:
+              format: int32
+              maximum: 1000
+              minimum: 1
+              type: integer
+            minReplicas:
+              format: int32
+              maximum: 1000
+              minimum: 1
+              type: integer
+            scaleTargetRef:
+              description: '// +kubebuilder:validation:Minimum=0.01 // +kubebuilder:validation:Maximum=0.99
+                Tolerance float64 `json:"tolerance,omitempty"` part of HorizontalPodAutoscalerSpec,
+                see comments in the k8s-1.10.8 repo: staging/src/k8s.io/api/autoscaling/v1/types.go
+                reference to scaled resource; horizontal pod autoscaler will learn
+                the current resource consumption and will set the desired number of
+                pods by using its Scale subresource.'
+              properties:
+                apiVersion:
+                  description: API version of the referent
+                  type: string
+                kind:
+                  description: 'Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds"'
+                  type: string
+                name:
+                  description: 'Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names'
+                  type: string
+              required:
+                - kind
+                - name
+              type: object
+            scaleUpLimitFactor:
+              format: int32
+              maximum: 10
+              minimum: 1
+              type: integer
+            scaleUpLimitMinimum:
+              format: int32
+              maximum: 20
+              minimum: 1
+              type: integer
+            upscaleForbiddenWindowAfterDownscaleSeconds:
+              format: int32
+              maximum: 600
+              minimum: 1
+              type: integer
+            useDecisionService:
+              type: boolean
+          required:
+            - maxReplicas
+            - scaleTargetRef
+            - useDecisionService
+          type: object
+        status:
+          description: HpaTunerStatus defines the observed state of HpaTuner
+          properties:
+            lastDownScaleTime:
+              description: Last time I downed the hpaMin
+              format: date-time
+              type: string
+            lastUpScaleTime:
+              description: Last time I upped the hpaMin
+              format: date-time
+              type: string
+          type: object
+      type: object
+  version: v1
+  versions:
+    - name: v1
+      served: true
+      storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
