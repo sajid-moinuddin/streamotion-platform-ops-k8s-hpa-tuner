@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "fullname" . }}
@@ -9,6 +9,11 @@ metadata:
 spec:
   revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+      genre: "custom-controller"
+      application: {{ template "fullname" . }}
   template:
     metadata:
       labels:
@@ -27,7 +32,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
 {{- range $pkey, $pval := .Values.env }}
-        - name: { { $pkey } }
+        - name: {{ $pkey }}
           value: "{{ $pval }}"
 {{- end }}
 {{- if .Values.extraEnv }}
