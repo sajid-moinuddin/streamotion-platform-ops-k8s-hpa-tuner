@@ -48,6 +48,32 @@ pipeline {
       }
     }
   }
+  stage('Promote to Environments') {
+    when {
+      branch 'master'
+    }
+    steps {
+      container('streamotion-go') {
+        sh "mv charts/helm-release  charts/$APP_NAME"
+        dir("charts/$APP_NAME") {
+          sh "jx step changelog --generate-yaml=false --version v\$(cat ../../VERSION)"
+
+          sh "make release"
+          // promote through all 'Staging' promotion Environments
+          sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=bedrock-staging --version \$(cat ../../VERSION)"
+//          sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=commerce-staging --version \$(cat ../../VERSION)"
+//            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=content-staging --version \$(cat ../../VERSION)"
+//            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=streamtech-staging --version \$(cat ../../VERSION)"
+
+          // promote through all 'Production' promotion Environments
+//          sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=commerce-production --version \$(cat ../../VERSION)"
+          // sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=content-production --version \$(cat ../../VERSION)"
+          // sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=streamtech-production --version \$(cat ../../VERSION)"
+
+        }
+      }
+    }
+  }
 
   post {
     always {
