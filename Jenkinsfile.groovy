@@ -1,6 +1,7 @@
 pipeline {
   agent {
-      label "jenkins-go"
+//      label "jenkins-go"
+    label "streamotion-maven"
   }
 
   environment {
@@ -14,7 +15,8 @@ pipeline {
         branch 'PR-*'
       }
       steps {
-        container('streamotion-go') {
+//        container('streamotion-go') {
+        container('maven') {
 //          TODO this does not work due to docker in docker running in jenkins - leaving it for later
 //          sh "make kind-test-setup"
 //          sh "make kind-tests"
@@ -30,11 +32,8 @@ pipeline {
         branch 'PR-*'
       }
       steps {
-        container('streamotion-go') {
-
-          // TODO remove
-          sh "aws sts get-caller-identity"
-          sh "cat \${DOCKER_CONFIG}/config.json"
+//        container('streamotion-go') {
+        container('maven') {
 
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
@@ -61,7 +60,8 @@ pipeline {
         branch 'PR-*'
       }
       steps {
-        container('streamotion-go') {
+//        container('streamotion-go') {
+        container('maven') {
           sh "mv charts/helm-release  charts/$APP_NAME"
           dir("charts/$APP_NAME") {
             sh "jx step changelog --generate-yaml=false --version v\$(cat ../../VERSION)"
