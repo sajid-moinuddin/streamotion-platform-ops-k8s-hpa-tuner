@@ -35,16 +35,4 @@ spec:
   {{- end }}
 resources:
   {{ toYaml .Values.resources | indent 10 }}
-  {{- if or .Values.lifecycle .Values.newRelic.tagDeployment }}
-lifecycle:
-  {{ toYaml .Values.lifecycle | indent 10 }}
-  {{- if .Values.newRelic.tagDeployment }}
-postStart:
-  exec:
-    command:
-      - /bin/sh
-      - "-c"
-      - "java -jar /newrelic/newrelic.jar deployment --appname={{ .Values.service.name }} --revision={{ .Chart.Version }} || echo Failed creating deployment."
-  {{- end }}
-  {{- end }}
 terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
