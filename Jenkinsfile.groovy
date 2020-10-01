@@ -32,6 +32,10 @@ pipeline {
       steps {
         container('streamotion-go') {
 
+          // TODO remove
+          sh "aws sts get-caller-identity"
+          sh "cat \${DOCKER_CONFIG}/config.json"
+
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
           sh "jx step git credentials"
