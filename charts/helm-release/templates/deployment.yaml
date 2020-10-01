@@ -38,3 +38,4 @@ spec:
 {{- if .Values.lifecycle }}
         lifecycle:
 {{ toYaml .Values.lifecycle | indent 10 }}
+{{- end }}
