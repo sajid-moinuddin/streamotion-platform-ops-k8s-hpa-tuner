@@ -68,7 +68,7 @@ pipeline {
 
             sh "make release"
             // promote through all 'Staging' promotion Environments
-            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=bedrock-staging --version \$(cat ../../VERSION)"
+            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=platform-bedrock --version \$(cat ../../VERSION)"
             //          sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=commerce-staging --version \$(cat ../../VERSION)"
             //            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=content-staging --version \$(cat ../../VERSION)"
             //            sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=streamtech-staging --version \$(cat ../../VERSION)"
