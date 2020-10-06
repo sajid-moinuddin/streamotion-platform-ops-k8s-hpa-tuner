@@ -4,7 +4,9 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
-  - resources:
+  - apiGroups:
+      - ""
+    resources:
       - deployments
     verbs:
       - get
@@ -12,13 +14,17 @@ rules:
       - patch
       - update
       - watch
-  - resources:
+  - apiGroups:
+      - ""
+    resources:
       - horizontalpodautoscalers
     verbs:
       - get
       - list
       - watch
-  - resources:
+  - apiGroups:
+      - ""
+    resources:
       - pods
     verbs:
       - get
