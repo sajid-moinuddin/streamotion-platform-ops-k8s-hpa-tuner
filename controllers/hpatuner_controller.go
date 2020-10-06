@@ -197,7 +197,11 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	actualMin := tuner.Spec.MinReplicas
 
 	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
+
 		if currentHpaMin < decisionServiceDesired {
+			r.Log.V(1).Info("Not skipping upscale check...",
+				"hpa", toString(hpa),
+				"lastDownscaled", tuner.Status.LastDownScaleTime)
 			return true, decisionServiceDesired
 		} else {
 			r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
@@ -219,6 +223,7 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 
 func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 	upscaleForbiddenWindow := time.Duration(tuner.Spec.UpscaleForbiddenWindowAfterDownScaleSeconds) * time.Second
+	r.Log.V(1).Info("Checking if recently downscaled: ", "upscaleForbiddenWindow", upscaleForbiddenWindow, "lastDownscaleTime", tuner.Status.LastDownScaleTime)
 
 	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
 		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
