@@ -27,9 +27,7 @@ pipeline {
 
     stage('Push To ECR') {
       when {
-//        branch 'master'
-        // TODO temp
-        branch 'PR-*'
+        branch 'master'
       }
       steps {
 //        container('streamotion-go') {
@@ -55,9 +53,7 @@ pipeline {
 
     stage('Promote to Environments') {
       when {
-//        branch 'master'
-        // TODO temp
-        branch 'PR-*'
+        branch 'master'
       }
       steps {
 //        container('streamotion-go') {
