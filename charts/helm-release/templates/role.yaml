@@ -1,24 +1,46 @@
-# permissions for end users to edit hpatuners.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: hpatuner-editor-role
+  creationTimestamp: null
+  name: manager-role
 rules:
-- apiGroups:
-  - webapp.streamotion.com.au
-  resources:
-  - hpatuners
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - webapp.streamotion.com.au
-  resources:
-  - hpatuners/status
-  verbs:
-  - get
+  - resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - webapp.streamotion.com.au
+    resources:
+      - hpatuners
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - webapp.streamotion.com.au
+    resources:
+      - hpatuners/status
+    verbs:
+      - get
+      - patch
+      - update
