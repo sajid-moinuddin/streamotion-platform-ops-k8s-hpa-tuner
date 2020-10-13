@@ -1,0 +1,42 @@
+# Default values for Maven projects.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+replicaCount: 1
+image:
+  repository: draft
+  tag: dev
+  pullPolicy: Always
+
+# define environment variables here as a map of key: value
+env:
+  #  NEW_RELIC_APP_NAME: customize!project.name
+  NEW_RELIC_APP_NAME: hpa-tuner # Please do not edit this line! Managed by customize.sh
+  NEW_RELIC_LICENSE_KEY: 70e37aaa633e349320a9c1107d5daca497fc4791
+  NEW_RELIC_AGENT_ENABLED: false
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: false
+
+# enable this flag to use knative serve to deploy the app
+knativeDeploy: false
+
+podAnnotations:
+  prometheus.io/scrape: "false"
+
+resources:
+  limits:
+    cpu: 4
+    memory: 512Mi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - /bin/sleep
+        - "20"
+autoscaling:
+  enabled: false
+  # targetMemoryUtilizationPercentage: 90
+podDisruptionBudget:
+  enabled: false
+revisionHistoryLimit: 3
