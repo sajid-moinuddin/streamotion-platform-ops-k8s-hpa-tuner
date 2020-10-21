@@ -81,6 +81,10 @@ kind-tests:
 focus-test:
 	ginkgo -v -focus="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 
+#Run unit tests
+unit-tests:
+	go test controllers/hpatuner_controller.go controllers/scaling_decision_service.go controllers/fakes.go controllers/hpatuner_controller_unit_test.go -v -count=1
+
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
