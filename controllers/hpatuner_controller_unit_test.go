@@ -18,53 +18,69 @@ import (
 
 var testDecisionService FakeScalingDecisionService
 
-func TestReconcile(t *testing.T) {
-	scheme := runtime.NewScheme()
-	webappv1.AddToScheme(scheme)
-	v1.AddToScheme(scheme)
-	scheme.AddKnownTypes(schema.GroupVersion{})
-
-	hpa := generateHpaForNames("test-svc", "test-ns")
-	hpaTuner := generateHpaTunerForNames("test-svc", "test-ns")
-
-	client := fake.NewFakeClientWithScheme(scheme, &hpa, &hpaTuner)
-	testDecisionService = FakeScalingDecisionService{
-		FakeDecision: &ScalingDecision{MinReplicas: 1},
+func TestReconcileWithDecisionService(t *testing.T) {
+	tests := map[string]struct {
+		currentCount      int32
+		scalingCount      int32
+		lastScaledSeconds int32
+		expectedCount     int32
+	}{
+		"upScale":                            {currentCount: 1, scalingCount: 3, lastScaledSeconds: 3600, expectedCount: 3},
+		"upScaleIfWithinForbiddenWindow":     {currentCount: 1, scalingCount: 3, lastScaledSeconds: 1, expectedCount: 3},
+		"downScale":                          {currentCount: 3, scalingCount: 1, lastScaledSeconds: 3600, expectedCount: 1},
+		"noDownScaleIfWithinForbiddenWindow": {currentCount: 3, scalingCount: 1, lastScaledSeconds: 1, expectedCount: 3},
 	}
 
-	recorder := record.NewFakeRecorder(100)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			webappv1.AddToScheme(scheme)
+			v1.AddToScheme(scheme)
+			scheme.AddKnownTypes(schema.GroupVersion{})
 
-	reconciler := HpaTunerReconciler{
-		Client:                 client,
-		Log:                    TestLogger{T: t, LogInfo: false},
-		Scheme:                 scheme,
-		eventRecorder:          recorder,
-		clientSet:              fake2.NewSimpleClientset(),
-		syncPeriod:             time.Duration(1),
-		scalingDecisionService: testDecisionService,
-		k8sHpaDownScaleTime:    time.Duration(1),
-	}
-	currentHpa := &v1.HorizontalPodAutoscaler{}
-	reconciler.Get(context.TODO(), types.NamespacedName{Name: "test-svc", Namespace: "test-ns"}, currentHpa)
+			sname := "test-svc"
+			namespace := "test-ns"
 
-	if *currentHpa.Spec.MinReplicas != 1 {
-		t.Errorf("Expected 1 Min replica but got %v", *hpa.Spec.MinReplicas)
-	}
+			hpa := generateHpaForNames(sname, namespace)
+			*hpa.Spec.MinReplicas = tc.currentCount
+			hpaTuner := generateHpaTunerForNames(sname, namespace, tc.lastScaledSeconds)
 
-	// set the scaling min to 5
-	testDecisionService.FakeDecision.MinReplicas = 5
+			client := fake.NewFakeClientWithScheme(scheme, &hpa, &hpaTuner)
+			testDecisionService = FakeScalingDecisionService{
+				FakeDecision: &ScalingDecision{MinReplicas: tc.scalingCount},
+			}
 
-	request := reconcile.Request{types.NamespacedName{Namespace: "test-ns", Name: "test-svc"}}
-	result, err := reconciler.Reconcile(request)
+			recorder := record.NewFakeRecorder(100)
 
-	if err != nil {
-		t.Error(err)
-	}
-	println("result: " + result.RequeueAfter.String())
+			reconciler := HpaTunerReconciler{
+				Client:                 client,
+				Log:                    TestLogger{T: t, LogInfo: false},
+				Scheme:                 scheme,
+				eventRecorder:          recorder,
+				clientSet:              fake2.NewSimpleClientset(),
+				syncPeriod:             time.Duration(1),
+				scalingDecisionService: testDecisionService,
+				k8sHpaDownScaleTime:    time.Duration(1),
+			}
+			currentHpa := &v1.HorizontalPodAutoscaler{}
+			reconciler.Get(context.TODO(), types.NamespacedName{Name: sname, Namespace: namespace}, currentHpa)
 
-	reconciler.Get(context.TODO(), types.NamespacedName{Name: "test-svc", Namespace: "test-ns"}, currentHpa)
-	if *currentHpa.Spec.MinReplicas != 5 {
-		t.Errorf("Expected 5 Min replica but got %v", *hpa.Spec.MinReplicas)
+			if *currentHpa.Spec.MinReplicas != tc.currentCount {
+				t.Errorf("Expected %v Min replica but got %v", tc.currentCount, *currentHpa.Spec.MinReplicas)
+			}
+
+			request := reconcile.Request{types.NamespacedName{Namespace: namespace, Name: sname}}
+			_, err := reconciler.Reconcile(request)
+
+			if err != nil {
+				t.Error(err)
+			}
+
+			reconciler.Get(context.TODO(), types.NamespacedName{Name: sname, Namespace: namespace}, currentHpa)
+			if *currentHpa.Spec.MinReplicas != tc.expectedCount {
+				t.Errorf("Expected %v Min replica but got %v", tc.expectedCount, *currentHpa.Spec.MinReplicas)
+			}
+		})
 	}
 
 }
@@ -107,16 +123,16 @@ func generateHpaForNames(name string, namespace string) v1.HorizontalPodAutoscal
 	return hpa
 }
 
-func generateHpaTunerForNames(name string, namespace string) webappv1.HpaTuner {
+func generateHpaTunerForNames(name string, namespace string, lastScaled int32) webappv1.HpaTuner {
 	spec := webappv1.HpaTunerSpec{
 		DownscaleForbiddenWindowSeconds:             30,
-		UpscaleForbiddenWindowAfterDownScaleSeconds: 600,
+		UpscaleForbiddenWindowAfterDownScaleSeconds: 30,
 		ScaleUpLimitFactor:                          2,
 		ScaleTargetRef: webappv1.CrossVersionObjectReference{
 			Kind: "HorizontalPodAutoscaler",
 			Name: name,
 		},
-		MinReplicas:        5,
+		MinReplicas:        1,
 		MaxReplicas:        1000,
 		UseDecisionService: true,
 	}
@@ -132,8 +148,8 @@ func generateHpaTunerForNames(name string, namespace string) webappv1.HpaTuner {
 		},
 		Spec: spec,
 		Status: webappv1.HpaTunerStatus{
-			LastUpScaleTime:   &metav1.Time{Time: time.Now().Add(time.Duration(-100000))},
-			LastDownScaleTime: &metav1.Time{Time: time.Now().Add(time.Duration(-100000))},
+			LastUpScaleTime:   &metav1.Time{Time: time.Now().Add(time.Duration(-1*lastScaled) * time.Second)},
+			LastDownScaleTime: &metav1.Time{Time: time.Now().Add(time.Duration(-1*lastScaled) * time.Second)},
 		},
 	}
 

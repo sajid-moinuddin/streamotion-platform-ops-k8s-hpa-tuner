@@ -9,7 +9,17 @@ pipeline {
   }
 
   stages {
-    stage('Test') {
+    stage('Unit-Test') {
+      when {
+        branch '*'
+      }
+      steps {
+        container('streamotion-go') {
+          sh "make unit-tests"
+        }
+      }
+    }
+    stage('Integration-Test') {
       when {
         branch 'PR-*'
       }
