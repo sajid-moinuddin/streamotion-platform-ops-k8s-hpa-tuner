@@ -45,7 +45,7 @@ TBD: GO setup in visual-studio-code details / links: What IDE configurations req
 # External dependencies
 
 ```
-kind
+kind (tested with version 0.9.0)
 make 
 ginkgo
 https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
