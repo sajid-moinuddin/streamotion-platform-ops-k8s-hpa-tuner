@@ -52,7 +52,7 @@ ifeq (1, $(shell kind get clusters | grep ${KIND_CLUSTER_NAME} | wc -l))
 	@echo "Cluster already exists"
 else
 	@echo "Creating Cluster"
-	kind create cluster --name ${KIND_CLUSTER_NAME} --config test-data/kind/kind-cluster-1.14.10.yaml
+	kind create cluster --name ${KIND_CLUSTER_NAME} --config test-data/kind/kind-cluster-1.15.11.yaml
 endif
 
 kind-load-metrics-server:
