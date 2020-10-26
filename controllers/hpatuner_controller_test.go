@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v12 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
@@ -27,18 +28,16 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	fetchedLoadGeneratorPod := &v12.Pod{}
 
 	BeforeEach(func() {
-		loadgenerator := &v12.Pod{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      "load-generator",
-				Namespace: "phpload",
-			},
+		labelSelectorForLoadGenerator := labels.SelectorFromSet(map[string]string{"type": "load-generator"})
+		listOpts := &client.ListOptions{Namespace: "phpload", LabelSelector: labelSelectorForLoadGenerator}
+
+		delOptionsForLoadGenerator := &client.DeleteAllOfOptions{
+			ListOptions: *listOpts,
 		}
 
-		k8sClient.Delete(ctx, loadgenerator)
-
+		k8sClient.DeleteAllOf(ctx, &v12.Pod{}, delOptionsForLoadGenerator)
 		k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
 		k8sClient.DeleteAllOf(ctx, &webappv1.HpaTuner{}, client.InNamespace("phpload"))
-
 	})
 
 	AfterEach(func() {
@@ -272,7 +271,7 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(
 			err := k8sClient.Get(ctx, name, &fetchedHpa)
 			Expect(err).Should(BeNil())
 
-			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v/cpu:%v", testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas, *fetchedHpa.Status.CurrentCPUUtilizationPercentage)
+			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v", testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas)
 
 			return condition(&fetchedHpa)
 		}, eventuallyTimeOut, interval).Should(BeTrue())
@@ -297,6 +296,7 @@ func generateLoadPod(testname string) v12.Pod {
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "load-generator-" + testname,
 			Namespace: "phpload",
+			Labels:    map[string]string{"type": "load-generator"},
 		},
 		Spec: v12.PodSpec{
 			Containers: []v12.Container{
