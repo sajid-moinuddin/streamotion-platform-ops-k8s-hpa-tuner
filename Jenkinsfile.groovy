@@ -1,7 +1,6 @@
 pipeline {
   agent {
-//      label "jenkins-go"
-    label "streamotion-maven"
+    label "streamotion-generic"
   }
 
   environment {
@@ -12,14 +11,14 @@ pipeline {
   stages {
     stage('Test') {
       when {
-        branch 'PR-*'
+        branch 'feature/*'
       }
       steps {
-//        container('streamotion-go') {
         container('maven') {
 //          TODO this does not work due to docker in docker running in jenkins - leaving it for later
 //          sh "make kind-test-setup"
 //          sh "make kind-tests"
+            sh "sleep 6000"
         }
       }
     }
