@@ -1,6 +1,6 @@
 pipeline {
   agent {
-    label "streamotion-generic"
+    label "streamotion-docker-in-docker"
   }
 
   environment {
@@ -30,7 +30,7 @@ pipeline {
       }
       steps {
 //        container('streamotion-go') {
-        container('maven') {
+        container('dind') {
 
           // ensure we're not on a detached head
           sh "git config --global credential.helper store"
