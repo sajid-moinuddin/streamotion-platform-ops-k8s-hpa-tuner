@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	v12 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
@@ -27,18 +28,16 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	fetchedLoadGeneratorPod := &v12.Pod{}
 
 	BeforeEach(func() {
-		loadgenerator := &v12.Pod{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      "load-generator",
-				Namespace: "phpload",
-			},
+		labelSelectorForLoadGenerator := labels.SelectorFromSet(map[string]string{"type": "load-generator"})
+		listOpts := &client.ListOptions{Namespace: "phpload", LabelSelector: labelSelectorForLoadGenerator}
+
+		delOptionsForLoadGenerator := &client.DeleteAllOfOptions{
+			ListOptions: *listOpts,
 		}
 
-		k8sClient.Delete(ctx, loadgenerator)
-
+		k8sClient.DeleteAllOf(ctx, &v12.Pod{}, delOptionsForLoadGenerator)
 		k8sClient.DeleteAllOf(ctx, &scaleV1.HorizontalPodAutoscaler{}, client.InNamespace("phpload"))
 		k8sClient.DeleteAllOf(ctx, &webappv1.HpaTuner{}, client.InNamespace("phpload"))
-
 	})
 
 	AfterEach(func() {
@@ -186,7 +185,8 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		It("T6: Test lower min while load taking place", func() {
 			logger.Println("----------------start test-----------")
-			fakeDecisionService.FakeDecision.MinReplicas = 15
+			firstDecision := int32(15)
+			fakeDecisionService.FakeDecision.MinReplicas = firstDecision
 
 			toCreateHpa := generateHpa()
 			Expect(k8sClient.Create(ctx, &toCreateHpa)).Should(Succeed())
@@ -214,23 +214,34 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name})
 
-			hpaVerifier(fmt.Sprintf("ensure replica count goes over %v", *toCreateHpa.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
-				return *autoscaler.Spec.MinReplicas == fakeDecisionService.FakeDecision.MinReplicas && autoscaler.Status.CurrentReplicas >= *toCreateHpa.Spec.MinReplicas
+			hpaVerifier(fmt.Sprintf("ensure cpu utilization goes over %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
+				return (*autoscaler.Spec.MinReplicas >= fakeDecisionService.FakeDecision.MinReplicas) &&
+					(autoscaler.Status.CurrentReplicas >= *toCreateHpa.Spec.MinReplicas) &&
+					(*autoscaler.Status.CurrentCPUUtilizationPercentage > 5) //wait till load generator makes cpu ramp up
 			})
 
-			fakeDecisionService.FakeDecision.MinReplicas = 1
-			hpaVerifier("verify downscale happens while under load but current stays high", func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
-				decision, _ := fakeDecisionService.scalingDecision("", 0, 0)
+			secondDecision := int32(1)
+			fakeDecisionService.FakeDecision.MinReplicas = secondDecision
 
-				hpaMinReduced := *fetchedHpa.Spec.MinReplicas == decision.MinReplicas
-				hpaStillHasHighReplicas := fetchedHpa.Status.CurrentReplicas > decision.MinReplicas
-				return hpaMinReduced && hpaStillHasHighReplicas
+			time.Sleep(time.Second * 10) //decision service returns 1 but hpa min should not be 1 as service is under load
+
+			hpaVerifier("verify cooldown does NOT happens while under load", func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
+				return *fetchedHpa.Spec.MinReplicas >= firstDecision
 			})
 
 			logger.Printf("stopping the load")
 
 			err := k8sClient.Delete(ctx, fetchedLoadGeneratorPod)
 			Expect(err).Should(BeNil())
+
+			//wait for load to come down
+			hpaVerifier(fmt.Sprintf("ensure CPU Cooled down < %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
+				return *autoscaler.Status.CurrentCPUUtilizationPercentage < 5
+			})
+
+			hpaVerifier("verify decision service is honored after cpu cooled down", func(fetchedHpa *scaleV1.HorizontalPodAutoscaler) bool { //
+				return *fetchedHpa.Spec.MinReplicas == secondDecision
+			})
 
 			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				hpaMinReduced := *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
@@ -285,6 +296,7 @@ func generateLoadPod(testname string) v12.Pod {
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "load-generator-" + testname,
 			Namespace: "phpload",
+			Labels:    map[string]string{"type": "load-generator"},
 		},
 		Spec: v12.PodSpec{
 			Containers: []v12.Container{
