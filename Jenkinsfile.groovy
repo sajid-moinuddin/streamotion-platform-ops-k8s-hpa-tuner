@@ -29,6 +29,7 @@ pipeline {
         }
       steps {
         container('dind') {
+            sh "env"
             sh "whoami"
             sh 'kill -SIGTERM "$(pgrep dockerd)"'
             sh "sleep 5"
