@@ -25,22 +25,24 @@ pipeline {
       }
         environment {
             DOCKER_HOST="unix:///var/run/dind.sock"
-            KUBECONFIG=".kube/config"
+            KUBECONFIG="$HOME/.kube/config"
         }
       steps {
         container('dind') {
             sh "env"
             sh "whoami"
+            sh "echo $HOME"
             sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "NO dockerd found"'
             sh "sleep 5"
             sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
             sh 'sleep 10' //wait for docker to be ready
             sh "docker ps"
-            sh 'rm -rf .kube/config | echo "No previous Kubeconfig found"'
+            sh 'rm -rf $HOME/.kube/config | echo "No previous Kubeconfig found"'
             sh 'make kind-delete | echo "No Clusters found"'
             sh "sleep 10"
             sh "make kind-test-setup"
             sh "sleep 10"
+            sh "kubectl get po -A"
             sh "kind get clusters"
             sh 'make kind-tests || echo tests failed!!!'
             sh "sleep 600"
