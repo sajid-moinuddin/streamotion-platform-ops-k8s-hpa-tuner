@@ -23,12 +23,17 @@ pipeline {
       when {
         branch 'PR-*'
       }
+        environment {
+            DOCKER_HOST="unix:///var/run/dind.sock"
+        }
       steps {
         container('dind') {
-//          TODO this does not work due to docker in docker running in jenkins - leaving it for later
-//          sh "make kind-test-setup"
-//          sh "make kind-tests"
-            sh "sleep 6000"
+            sh "whoami"
+            sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
+            sh "until docker ps >/dev/null 2>&1" //wait for docker to be ready
+            sh "make kind-test-setup"
+            sh "make kind-tests"
+            sh 'kill -SIGTERM "$(pgrep dockerd)"'
         }
       }
     }
