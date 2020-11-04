@@ -25,12 +25,16 @@ pipeline {
       }
         environment {
             DOCKER_HOST="unix:///var/run/dind.sock"
+            KUBECONFIG="~/.kube/config"
         }
       steps {
         container('dind') {
             sh "whoami"
+            sh 'kill -SIGTERM "$(pgrep dockerd)"'
+            sh "sleep 5"
             sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
             sh 'sleep 30' //wait for docker to be ready
+            sh "kubectl get po -A"
             sh "make kind-test-setup"
             sh "make kind-tests"
             sh 'kill -SIGTERM "$(pgrep dockerd)"'
