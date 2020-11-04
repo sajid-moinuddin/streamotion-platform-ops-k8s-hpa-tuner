@@ -11,7 +11,7 @@ pipeline {
   stages {
     stage('Unit-Test') {
       when {
-        branch '*'
+        branch '*/*'
       }
       steps {
         container('streamotion-go') {
