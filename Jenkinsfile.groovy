@@ -35,9 +35,13 @@ pipeline {
             sh "sleep 5"
             sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
             sh 'sleep 30' //wait for docker to be ready
-            sh "kubectl get po -A"
+            sh 'rm -rf /root/.kube/config | echo "No previous Kubeconfig found"'
+            sh 'make kind-delete | echo "No Clusters found"'
+            sh "sleep 10"
             sh "make kind-test-setup"
-            sh "make kind-tests"
+            sh "sleep 10"
+            sh "kind get clusters"
+            sh 'export KUBECONFIG="~/.kube/config" && make kind-tests'
             sh 'kill -SIGTERM "$(pgrep dockerd)"'
         }
       }

@@ -61,7 +61,7 @@ kind-load-metrics-server:
 	kubectl apply  -f test-data/kind/metrics-server.yaml
 
 
-kind-test-setup: kind-delete kind-start kind-load-metrics-server docker-build-phpload
+kind-test-setup: kind-start kind-load-metrics-server docker-build-phpload
 	kind load docker-image ${TEST_POD_IMG} --name ${KIND_CLUSTER_NAME}
 	kubectl apply  -f test-data/phpload/php-apache-application.yaml
 	sleep 10
