@@ -45,7 +45,7 @@ TBD: GO setup in visual-studio-code details / links: What IDE configurations req
 # External dependencies
 
 ```
-kind
+kind (tested with version 0.9.0)
 make 
 ginkgo
 https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
@@ -69,6 +69,8 @@ Important "business" scenarios that this application handles? how? Explain or po
         
 Instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for 
 min Pods as we go
+
+>> TODO: leave notes here for testing 
 
 # References
 The CRD is generated from the `hpatuner_types.go`, if you change it, re-run make 

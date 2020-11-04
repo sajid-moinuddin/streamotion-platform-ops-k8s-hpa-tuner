@@ -52,7 +52,7 @@ ifeq (1, $(shell kind get clusters | grep ${KIND_CLUSTER_NAME} | wc -l))
 	@echo "Cluster already exists"
 else
 	@echo "Creating Cluster"
-	kind create cluster --name ${KIND_CLUSTER_NAME} --config test-data/kind/kind-cluster-1.14.10.yaml
+	kind create cluster --name ${KIND_CLUSTER_NAME} --config test-data/kind/kind-cluster-1.15.11.yaml
 endif
 
 kind-load-metrics-server:
@@ -75,7 +75,7 @@ kind-load-img: docker-build
 # Run integration tests in KIND
 kind-tests: 
 #	ginkgo -v --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
-	ginkgo -v --skip="LONG TEST:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+	ginkgo -v --skip="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 
 #Start your test with It("WIP:... and only that will be executed
 focus-test:
