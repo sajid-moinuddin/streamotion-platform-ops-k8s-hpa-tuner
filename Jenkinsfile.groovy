@@ -42,12 +42,13 @@ pipeline {
                     sh "sleep 10"
                     sh "kubectl get po -A"
                     sh "kind get clusters"
-                    sh 'make kind-tests || echo tests failed!!!'
+                    sh 'make kind-tests'
 
                 }
             }
             post {
                 always {
+                    //kill the docker engine
                     sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }
             }
