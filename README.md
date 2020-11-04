@@ -1,7 +1,7 @@
 #streamotion-platform-ops-scaling-decision-service
 # Context
 
-![HPaTuner] (doc/hpa-tuner.png)
+![HPaTuner] (./doc/hpa-tuner.png)
 
 Experimental project to learn Kubernetes Controller Framework with the endgoal to tune the HPA 
 based on more customized parameters like `time of day` (evenings are more aggressively scaled than days) etc. 
