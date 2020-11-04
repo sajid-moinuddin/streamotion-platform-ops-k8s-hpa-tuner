@@ -42,8 +42,8 @@ pipeline {
             sh "make kind-test-setup"
             sh "sleep 10"
             sh "kind get clusters"
+            sh 'export KUBECONFIG="~/.kube/config" && make kind-tests || echo tests failed!!!'
             sh "sleep 600"
-            sh 'export KUBECONFIG="~/.kube/config" && make kind-tests'
             sh 'kill -SIGTERM "$(pgrep dockerd)"'
         }
       }
