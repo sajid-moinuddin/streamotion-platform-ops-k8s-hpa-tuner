@@ -30,7 +30,7 @@ pipeline {
         container('dind') {
             sh "whoami"
             sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
-            sh "until docker ps >/dev/null 2>&1" //wait for docker to be ready
+            sh 'until docker ps >/dev/null 2>&1' //wait for docker to be ready
             sh "make kind-test-setup"
             sh "make kind-tests"
             sh 'kill -SIGTERM "$(pgrep dockerd)"'
