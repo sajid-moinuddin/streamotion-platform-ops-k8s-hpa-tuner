@@ -14,7 +14,7 @@ pipeline {
         branch '*/*'
       }
       steps {
-        container('streamotion-go') {
+        container('generic') {
           sh "make unit-tests"
         }
       }
@@ -66,7 +66,7 @@ pipeline {
       }
       steps {
 //        container('generic') {
-        container('dind') {
+        container('generic') {
           sh "mv charts/helm-release  charts/$APP_NAME"
           dir("charts/$APP_NAME") {
             sh "jx step changelog --generate-yaml=false --version v\$(cat ../../VERSION)"
