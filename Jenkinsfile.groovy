@@ -46,12 +46,11 @@ pipeline {
             sh "kind get clusters"
             sh 'make kind-tests || echo tests failed!!!'
 
-            sh 'kill -SIGTERM "$(pgrep dockerd)"'
         }
       }
       post {
         always {
-            sh 'kill -SIGTERM "$(pgrep dockerd)"'
+            sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
         }
       }
 
