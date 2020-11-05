@@ -78,15 +78,16 @@ Optionally use decision service
 https://github.com/fsa-streamotion/streamotion-platform-ops-scaling-decision-service.git
 ```
 
-# Scenarios
-Important "business" scenarios that this application handles? how? Explain or point to confluence.
-
 # Business logic
-        
-Instead of updating the deployment, the plan is to re-use the logic of the HPA but tune the HPA for 
-min Pods as we go
-
->> TODO: leave notes here for testing 
+1. if the hpa.minReplicas should be always equal to or greather than hpa-tuner.minReplicas
+2. if hpa.desiredReplicas is scaled up because of load, hpa.minReplicas will be updated to match desiredReplicas 
+    * (this is to prevent k8s to scale down the hpa.desiredReplicas before hpa-tuner.downscaleForbiddenWindowSeconds)
+    * if hpa-tuner.downscaleForbiddenWindowSeconds is elapsed and hpa is not busy (cpu < 5%), hpa.minReplicas will be set back to hpa-tuner.minReplicas 
+3. there will be no cool-down activity (decreasing hpa.minReplica) as long as hpa is busy (cpu > 5%)
+4. alway pick the larger scaling number between decision-service.count & hpa.desiredReplicas
+5. if recently downscaled, wait until hpatuner.spec.UpscaleForbiddenWindowAfterDownScaleSeconds before scaling up hpa.min 
+6. TBD. pls add more logic / helper instructions for testing.
+   
 
 # References
 The project scaffold is generated from : https://book.kubebuilder.io/ 
