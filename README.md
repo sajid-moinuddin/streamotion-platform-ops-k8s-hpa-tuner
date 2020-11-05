@@ -15,7 +15,7 @@ Traditionally we have addressed this issue by:
 1. Run lower-priority dummy pod to keep AWS EC2 instance in pool so the higher priority pods can kick them out and scale in matter of seconds not 10 min aws ec2 spinup time
 1. finally some operator (human) going in and up/down the HPA min based on the major game schedule that we know in advance.
      
-Despite all that effort, we notices 1-4 min degradation in our customer experience (api response time crossing 2 sec) during major game events. 
+Despite all that effort, we noticed 1-4 min degradation in our customer experience (api response time crossing 2 sec) during major game events. 
 
 
 # Solution
