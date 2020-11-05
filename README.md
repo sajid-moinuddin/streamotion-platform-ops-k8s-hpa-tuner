@@ -23,8 +23,7 @@ Staying true to the operator framework mantra:
 People who run workloads on Kubernetes often like to use automation to take care of repeatable tasks. The Operator pattern captures how you can write code to automate a task beyond what Kubernetes itself provides.**
 
 
-![HPA Tuner HighLevel Design](./doc/hpa-tuner.png =500x500)
-
+![HPA Tuner HighLevel Design](./doc/hpa-tuner.png) 
 
 
 # How to start
