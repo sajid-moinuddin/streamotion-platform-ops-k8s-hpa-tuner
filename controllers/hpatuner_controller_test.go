@@ -217,6 +217,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			hpaVerifier(fmt.Sprintf("ensure cpu utilization goes over %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
 				return (*autoscaler.Spec.MinReplicas >= fakeDecisionService.FakeDecision.MinReplicas) &&
 					(autoscaler.Status.CurrentReplicas >= *toCreateHpa.Spec.MinReplicas) &&
+					autoscaler.Status.CurrentCPUUtilizationPercentage != nil &&
 					(*autoscaler.Status.CurrentCPUUtilizationPercentage > 5) //wait till load generator makes cpu ramp up
 			})
 
