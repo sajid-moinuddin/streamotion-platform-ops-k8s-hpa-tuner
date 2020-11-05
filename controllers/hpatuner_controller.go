@@ -155,7 +155,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 				}
 			}
 		} else {
-			log.Info("----hpa locked but scaledown condition not met")
+			log.Info("----hpa locked but scaledown condition not met", "elapsed: ", elapsedDownscaleForbiddenWindow(hpa, hpaTuner), "isIdle: ", isIdle(hpa))
 		}
 	} else {
 		log.V(1).Info("Nothing to do...")
