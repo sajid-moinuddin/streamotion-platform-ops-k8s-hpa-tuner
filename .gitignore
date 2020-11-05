@@ -8,6 +8,7 @@ controllers.coverprofile
 *.so
 *.dylib
 bin
+out
 
 # Test binary, build with `go test -c`
 *.test

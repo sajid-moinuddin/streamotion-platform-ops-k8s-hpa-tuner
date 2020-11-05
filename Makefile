@@ -61,7 +61,7 @@ kind-load-metrics-server:
 	kubectl apply  -f test-data/kind/metrics-server.yaml
 
 
-kind-test-setup: kind-delete kind-start kind-load-metrics-server docker-build-phpload
+kind-test-setup: kind-start kind-load-metrics-server docker-build-phpload
 	kind load docker-image ${TEST_POD_IMG} --name ${KIND_CLUSTER_NAME}
 	kubectl apply  -f test-data/phpload/php-apache-application.yaml
 	sleep 10
@@ -80,6 +80,10 @@ kind-tests:
 #Start your test with It("WIP:... and only that will be executed
 focus-test:
 	ginkgo -v -focus="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+
+#Run unit tests
+unit-tests:
+	go test controllers/hpatuner_controller.go controllers/scaling_decision_service.go controllers/fakes.go controllers/hpatuner_controller_unit_test.go -v -count=1
 
 # Uninstall CRDs from a cluster
 uninstall: manifests

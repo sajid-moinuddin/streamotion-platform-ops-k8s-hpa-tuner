@@ -45,9 +45,8 @@ func CreateScalingDecisionService() ScalingDecisionService {
 
 type HttpScalingDecisionService struct {
 	decisionServiceEndpoint string
-	Client  *http.Client
+	Client                  *http.Client
 }
-
 
 type DecisionServiceResponse struct {
 	Decision struct {
@@ -55,12 +54,11 @@ type DecisionServiceResponse struct {
 	} `json:"decision"`
 }
 
-
 func (s HttpScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
 	log.Printf("name %v , min: %v, current: %v", name, min, current)
 
- 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
-	req, _ := http.NewRequest("GET", s.decisionServiceEndpoint + "/api/HorizontalPodAutoscaler", nil)
+	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
+	req, _ := http.NewRequest("GET", s.decisionServiceEndpoint+"/api/HorizontalPodAutoscaler", nil)
 
 	q := req.URL.Query()
 	q.Add("name", name)
@@ -73,13 +71,10 @@ func (s HttpScalingDecisionService) scalingDecision(name string, min int32, curr
 
 	response, err := s.Client.Do(req)
 
-
-
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
-
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
@@ -89,9 +84,8 @@ func (s HttpScalingDecisionService) scalingDecision(name string, min int32, curr
 
 	log.Printf("resp: %v", string(responseData))
 
-
 	var responseObject DecisionServiceResponse
-    json.Unmarshal(responseData, &responseObject)
+	json.Unmarshal(responseData, &responseObject)
 
 	log.Printf("--response: %v", responseObject)
 
@@ -99,5 +93,3 @@ func (s HttpScalingDecisionService) scalingDecision(name string, min int32, curr
 		MinReplicas: responseObject.Decision.MinCount,
 	}, nil
 }
-
-

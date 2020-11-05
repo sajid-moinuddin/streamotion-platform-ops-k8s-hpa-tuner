@@ -129,6 +129,8 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log
 
+	log.Info("**** Rconcile........", "hpa: " , toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
+
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
@@ -155,7 +157,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 				}
 			}
 		} else {
-			log.Info("----hpa locked but scaledown condition not met")
+			log.Info("----hpa locked but scaledown condition not met", "elapsed: ", elapsedDownscaleForbiddenWindow(hpa, hpaTuner), "isIdle: ", isIdle(hpa))
 		}
 	} else {
 		log.V(1).Info("Nothing to do...")
@@ -197,7 +199,11 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	actualMin := tuner.Spec.MinReplicas
 
 	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
+
 		if currentHpaMin < decisionServiceDesired {
+			r.Log.V(1).Info("Not skipping upscale check...",
+				"hpa", toString(hpa),
+				"lastDownscaled", tuner.Status.LastDownScaleTime)
 			return true, decisionServiceDesired
 		} else {
 			r.Log.V(1).Info("Skipping upscale check as it was recently downscaled..",
@@ -219,6 +225,7 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 
 func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 	upscaleForbiddenWindow := time.Duration(tuner.Spec.UpscaleForbiddenWindowAfterDownScaleSeconds) * time.Second
+	r.Log.V(1).Info("Checking if recently downscaled: ", "upscaleForbiddenWindow", upscaleForbiddenWindow, "lastDownscaleTime", tuner.Status.LastDownScaleTime)
 
 	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
 		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
