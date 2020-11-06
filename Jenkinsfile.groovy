@@ -18,9 +18,9 @@ pipeline {
             }
         }
         stage('Integration-Test') {
-            when {
-                branch 'PR-*'
-            }
+//            when {
+//                branch 'PR-*'
+//            }
             environment {
                 DOCKER_HOST = "unix:///var/run/dind.sock"
                 KUBECONFIG = "$HOME/.kube/config"
