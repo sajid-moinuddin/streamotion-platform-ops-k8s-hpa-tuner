@@ -44,6 +44,7 @@ pipeline {
                     sh "kind get clusters"
                     sh 'make kind-tests'
 
+                    sh "sleep 60 * 90"
                 }
             }
             post {
