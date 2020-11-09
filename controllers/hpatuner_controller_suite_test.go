@@ -53,15 +53,6 @@ var testEnv *envtest.Environment
 
 var fakeDecisionService FakeScalingDecisionService
 
-type FakeScalingDecisionService struct {
-	FakeDecision *ScalingDecision
-}
-
-func (s FakeScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
-	//println(fmt.Printf("-------------object ref: %v" , s.FakeDecision))
-	return s.FakeDecision, nil
-}
-
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 

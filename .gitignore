@@ -1,3 +1,5 @@
+#TODO: not sure about this coverprofile/functionality yet
+controllers.coverprofile
 
 # Binaries for programs and plugins
 *.exe
@@ -6,6 +8,7 @@
 *.so
 *.dylib
 bin
+out
 
 # Test binary, build with `go test -c`
 *.test
