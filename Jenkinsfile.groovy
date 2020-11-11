@@ -107,9 +107,14 @@ pipeline {
                         sh "kubectl create namespace preview"
                         sh "jx ns preview"
                         sh "helm template --namespace preview --name hpa-tuner . | kubectl apply -f -"
-                        sh "sleep 10"
-                        sh "kubectl get po -n preview"
-                        sh "kubectl get deploy hpa-tuner-preview  --output=jsonpath={.status.readyReplicas} | grep -q '1'"
+                        retry(5) {
+                            sh "sleep 10"
+
+                            sh "kubectl get po -n preview"
+                            sh "kubectl get deploy -n preview"
+
+                            sh "kubectl get deploy hpa-tuner-preview  --output=jsonpath={.status.readyReplicas} | grep -q '1'"
+                        }
                     }
 
                     sh "kubectl apply -f config/samples/hpa-php-load.yaml"
@@ -122,14 +127,17 @@ pipeline {
                     sh "kubectl describe hpa -n phpload"
                     sh "kubectl describe hpatuner -n phpload"
 
-                    sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 11"
+                    retry(5) {
+                        sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 11"
+
+                    }
                 }
             }
 
             post {
                 failure {
                     //kill the docker engine
-                    sh "echo cleaning up"
+                    sh "FAILED!!! Pls see POD logs"
                     sh "sleep 600"
 //                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }
