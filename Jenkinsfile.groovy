@@ -122,7 +122,7 @@ pipeline {
                     sh "kubectl describe hpa -n phpload"
                     sh "kubectl describe hpatuner -n phpload"
 
-                    sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 10"
+                    sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 11"
                 }
             }
 
