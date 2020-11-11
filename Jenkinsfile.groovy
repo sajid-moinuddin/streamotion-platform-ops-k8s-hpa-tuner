@@ -116,20 +116,27 @@ pipeline {
                             sh "kubectl get deploy hpa-tuner-preview  --output=jsonpath={.status.readyReplicas} | grep -q '1'"
                         }
                     }
+                    echo "...... cleanup resources from integration tests ......"
+                    sh "kubectl delete -f config/samples/hpa-php-load.yaml"
+                    sh "kubectl delete -f config/samples/webapp_v1_hpatuner.yaml"
+
+                    sh "sleep 15"
 
                     sh "kubectl apply -f config/samples/hpa-php-load.yaml"
                     sh "kubectl apply -f config/samples/webapp_v1_hpatuner.yaml"
                     sh "kubectl get hpa -n phpload "
-                    sh "sleep 15"
-                    /*THE TEST: the hpa was created with spec.minReplicas = 1, if its turned to 10, that means hpa-tuner controller was
-                     * successfully deployed and changed it to 10
-                     */
-                    sh "kubectl describe hpa -n phpload"
-                    sh "kubectl describe hpatuner -n phpload"
 
                     retry(5) {
-                        sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 11"
+                        sh "sleep 15"
+                        echo """
+                                THE TEST: the hpa was created with spec.minReplicas = 1, if its turned to 10, that means hpa-tuner controller was
+                                successfully deployed and changed it to 10
+                             """
+                        sh "kubectl describe hpa -n phpload"
+                        sh "kubectl describe hpatuner -n phpload"
 
+                        sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas}"
+                        sh "kubectl get hpa -n phpload php-apache --output=jsonpath={.spec.minReplicas} | grep 10"
                     }
                 }
             }
