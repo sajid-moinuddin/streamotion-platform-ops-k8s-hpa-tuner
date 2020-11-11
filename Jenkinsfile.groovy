@@ -51,7 +51,7 @@ pipeline {
                     sh "sleep 10"
                     sh "kubectl get po -A"
                     sh "kind get clusters"
-//                    sh 'make kind-tests'
+                    sh 'make kind-tests'
                 }
             }
             post {
