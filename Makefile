@@ -1,7 +1,7 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
-TEST_POD_IMG = sajid2045/phpload:1.1.1
+TEST_POD_IMG = streamotion/phpload:1.1.1
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -12,7 +12,7 @@ KIND_CLUSTER_NAME ?= "hpa-tuner-controller"
 K8S_NODE_IMAGE ?= v1.15.3
 PROMETHEUS_INSTANCE_NAME ?= prometheus-operator
 CONFIG_MAP_NAME ?= hpa-tuner-controller-configmap
-METRICS_SERVER_IMG = k8s.gcr.io/metrics-server-amd64:v0.3.6
+METRICS_SERVER_IMG = bitnami/metrics-server:0.3.7
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -56,7 +56,7 @@ else
 endif
 
 kind-load-metrics-server:
-	docker pull k8s.gcr.io/metrics-server-amd64:v0.3.6
+	docker pull bitnami/metrics-server:0.3.7
 	kind load docker-image ${METRICS_SERVER_IMG} --name ${KIND_CLUSTER_NAME} || echo loaded
 	kubectl apply  -f test-data/kind/metrics-server.yaml
 
@@ -100,7 +100,7 @@ manifests: controller-gen
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 manifests-helm: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/helm-release/templates output:rbac:artifacts:config=charts/helm-release/templates
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/helm-release/templates output:rbac:artifacts:config=charts/helm-release/templates2
 
 # Run go fmt against code
 fmt:

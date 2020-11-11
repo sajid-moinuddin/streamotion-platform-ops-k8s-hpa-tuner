@@ -1,1 +1,1 @@
-# Java application
+# Helm Repo for streamotion hpa tuner

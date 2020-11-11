@@ -8,6 +8,6 @@ spec:
   scaleTargetRef:
     kind: HorizontalPodAutoscaler
     name: php-apache
-  minReplicas: 1
+  minReplicas: 10
   maxReplicas: 1000
   useDecisionService: false

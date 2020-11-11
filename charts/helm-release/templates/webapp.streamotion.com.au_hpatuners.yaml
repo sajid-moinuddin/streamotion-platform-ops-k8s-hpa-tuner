@@ -5,7 +5,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
-    "helm.sh/hook": crd-install
   creationTimestamp: null
   name: hpatuners.webapp.streamotion.com.au
 spec:
@@ -68,8 +67,8 @@ spec:
                   description: 'Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names'
                   type: string
               required:
-                - kind
-                - name
+              - kind
+              - name
               type: object
             scaleUpLimitFactor:
               format: int32
@@ -89,9 +88,9 @@ spec:
             useDecisionService:
               type: boolean
           required:
-            - maxReplicas
-            - scaleTargetRef
-            - useDecisionService
+          - maxReplicas
+          - scaleTargetRef
+          - useDecisionService
           type: object
         status:
           description: HpaTunerStatus defines the observed state of HpaTuner
@@ -108,9 +107,9 @@ spec:
       type: object
   version: v1
   versions:
-    - name: v1
-      served: true
-      storage: true
+  - name: v1
+    served: true
+    storage: true
 status:
   acceptedNames:
     kind: ""
