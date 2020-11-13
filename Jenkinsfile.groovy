@@ -18,9 +18,9 @@ pipeline {
             }
         }
         stage('Integration-Test') {
-//            when {
-//                branch 'PR-*'
-//            }
+            when {
+                branch 'PR-*'
+            }
             environment {
                 /*in the dind container, jenkins-k8s plugin mounts the default /var/run/docker.sock to the k8s node host docker daemon port, lets not mess with that
                 * instead the DOCKER im gonna run in this POD will use /var/run/dind.sock to publish docker daemon api*/
@@ -64,7 +64,7 @@ pipeline {
 
         }
 
-        stage('DOCKER BUILD') {
+        stage('PREVIEW DOCKER BUILD') {
             when {
                 branch 'PR-*'
             }
