@@ -56,9 +56,11 @@ pipeline {
                 }
             }
             post {
-                always {
+                failure {
                     //kill the docker engine
-                    sh "echo cleaning up"
+                    sh "FAILED!!! Pls see POD logs"
+                    sh "kubectl get po -A"
+                    sh "sleep 600"
 //                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }
             }
