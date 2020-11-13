@@ -189,6 +189,8 @@ pipeline {
                         sh "jx step changelog --generate-yaml=false --version v\$(cat ../../VERSION)"
 
                         sh "make release"
+
+                        sh "jx promote -b --no-poll=true  --helm-repo-url=$CHART_REPOSITORY --no-poll=true --no-merge=true --no-wait=true --env=hpatuner-staging --version \$(cat ../../VERSION)"
                     }
                 }
             }
