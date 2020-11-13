@@ -47,6 +47,7 @@ pipeline {
                         sh 'make kind-delete | echo "No Clusters found"'
                         sh "sleep 10"
                         sh "make kind-test-setup"
+                        sh "kubectl get po -A"
                     }
                     sh "sleep 10"
                     sh "kubectl get po -A"
