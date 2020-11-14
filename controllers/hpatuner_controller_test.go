@@ -214,6 +214,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name}, timeout)
 
+			//TODO: this seems to fail randomly on the docker in docker POD hence made this test status WIP
 			hpaVerifier(fmt.Sprintf("ensure cpu utilization goes over %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
 				return (*autoscaler.Spec.MinReplicas >= fakeDecisionService.FakeDecision.MinReplicas) &&
 					(autoscaler.Status.CurrentReplicas >= *toCreateHpa.Spec.MinReplicas) &&
