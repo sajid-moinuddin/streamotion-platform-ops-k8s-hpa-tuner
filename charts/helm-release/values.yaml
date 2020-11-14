@@ -14,7 +14,7 @@ env:
   NEW_RELIC_LICENSE_KEY: 70e37aaa633e349320a9c1107d5daca497fc4791
   NEW_RELIC_AGENT_ENABLED: false
   NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: false
-
+  DECISION_SERVICE_ENDPOINT:
 # enable this flag to use knative serve to deploy the app
 knativeDeploy: false
 

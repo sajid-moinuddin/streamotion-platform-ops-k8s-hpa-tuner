@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"time"
@@ -27,7 +28,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/go-logr/logr"
-	"github.com/golang/glog"
 	webappv1 "hpa-tuner/api/v1"
 	scaleV1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/api/core/v1"
@@ -81,7 +81,8 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
-	log.Info("Reconcile: ----------------------------------------------------------------------------------------------------") // to have clear separation between previous and current reconcile run
+	log.Info("********************* START RECONCILE **********************") // to have clear separation between previous and current reconcile run
+	defer log.Info("********************* FINISHED RECONCILE **********************") // to have clear separation between previous and current reconcile run
 
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
@@ -127,7 +128,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // HpaTunerReconciler reconciles a HpaTuner object
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
-	log := r.Log
+	log := r.Log.WithValues("hpatuner", hpaTuner.Name)
 
 	log.Info("**** Rconcile........", "hpa: " , toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
 
@@ -343,7 +344,7 @@ func isHpaMinAlreadyInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.Hori
 
 //TODO: need to/can use informer ?? otherwise will make get/list options directly to api , can put pressure on api-server, probably should be fine (api-server creates backpressure too)
 func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	log.Print("************************************SETUP******************")
+
 	clientConfig := mgr.GetConfig()
 	clientSet, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
@@ -362,7 +363,7 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.k8sHpaDownScaleTime = time.Minute * 30
 
 	if r.scalingDecisionService == nil { //nil check needed to preserve the stub in testing
-		r.scalingDecisionService = CreateScalingDecisionService()
+		r.scalingDecisionService = CreateScalingDecisionService(r.Log)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

@@ -79,7 +79,7 @@ kind-tests:
 
 #Start your test with It("WIP:... and only that will be executed
 focus-test:
-	ginkgo -v -focus="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+	ginkgo -v -focus="T6:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 
 #Run unit tests
 unit-tests:
