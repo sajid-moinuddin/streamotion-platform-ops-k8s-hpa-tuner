@@ -4,7 +4,6 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
