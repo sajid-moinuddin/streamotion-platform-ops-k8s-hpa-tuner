@@ -183,7 +183,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("T6: Test lower min while load taking place", func() {
+		It("WIP: Test lower min while load taking place", func() {
 			logger.Println("----------------start test-----------")
 			firstDecision := int32(15)
 			fakeDecisionService.FakeDecision.MinReplicas = firstDecision
