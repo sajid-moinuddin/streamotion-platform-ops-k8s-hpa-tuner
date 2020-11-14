@@ -212,7 +212,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 				return fetchedLoadGeneratorPod.Status.ContainerStatuses != nil && fetchedLoadGeneratorPod.Status.ContainerStatuses[0].Ready == true
 			}, timeout, interval).Should(BeTrue())
 
-			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name})
+			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name}, timeout)
 
 			hpaVerifier(fmt.Sprintf("ensure cpu utilization goes over %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
 				return (*autoscaler.Spec.MinReplicas >= fakeDecisionService.FakeDecision.MinReplicas) &&
