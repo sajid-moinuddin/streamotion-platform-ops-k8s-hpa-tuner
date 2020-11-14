@@ -34,14 +34,15 @@ pipeline {
                     sh "env"
                     sh "whoami"
                     sh "echo $HOME"
-                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "NO dockerd found"'
-                    sh "sleep 5"
-                    sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
-                    sh 'sleep 15' //wait for docker to be ready
-                    sh "docker ps"
-                    sh 'rm -rf $HOME/.kube/config | echo "No previous Kubeconfig found"'
-
                     retry(3) { //flacky docker pulls
+                        sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "NO dockerd found"'
+                        sh "sleep 5"
+                        sh "/usr/bin/dockerd -H unix:///var/run/dind.sock &"
+                        sh 'sleep 15' //wait for docker to be ready
+                        sh "docker ps"
+                        sh 'rm -rf $HOME/.kube/config | echo "No previous Kubeconfig found"'
+
+
                         sh "kubectl get po -A"
 
                         sh 'make kind-delete | echo "No Clusters found"'
