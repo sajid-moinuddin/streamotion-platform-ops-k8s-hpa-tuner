@@ -58,7 +58,7 @@ pipeline {
 
                 failure {
                     //kill the docker engine
-                    sh "FAILED!!! Pls see POD logs"
+                    sh "echo FAILED!!! Pls see POD logs"
                     sh "sleep 600"
 //                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }
