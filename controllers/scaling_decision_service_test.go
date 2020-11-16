@@ -12,16 +12,17 @@ import (
 	//. "github.com/onsi/gomega"
 )
 
+
 var _ = Describe("ScalingDecisionService", func() {
+	log := zap.New(zap.UseDevMode(true))
+
 	Context("ScalingDecisionServiceTest", func() {
 		It("returns nil if endpoint is not defined in environment", func() {
-			decisionService := CreateScalingDecisionService(nil)
+			decisionService := CreateScalingDecisionService(log)
 			Expect(decisionService).To(BeNil())
 		})
 
 		It("test get mincount", func() {
-			log := zap.New(zap.UseDevMode(true))
-
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprintln(w, ` {"decision":{"minCount":99}}`)
