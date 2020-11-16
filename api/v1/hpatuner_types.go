@@ -29,7 +29,7 @@ type HpaTunerSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=600
+	// +kubebuilder:validation:Maximum=6000
 	DownscaleForbiddenWindowSeconds int32 `json:"downscaleForbiddenWindowSeconds,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=600
