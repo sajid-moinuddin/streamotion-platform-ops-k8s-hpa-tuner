@@ -10,7 +10,6 @@ pipeline {
 
     stages {
         stage('Unit-Test') {
-            when { branch pattern: ".*", comparator: "REGEXP" }
             steps {
                 container('generic') {
                     sh "make unit-tests"
