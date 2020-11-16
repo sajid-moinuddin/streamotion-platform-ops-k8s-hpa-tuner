@@ -100,3 +100,8 @@ The CRD is generated from the `hpatuner_types.go`, if you change it, re-run make
     https://github.com/kubernetes-sigs/controller-runtime/blob/master/pkg/client/example_test.go
     https://sdk.operatorframework.io/docs/golang/references/client/
 
+TODO:
+    [ ] paramaterize reconcile loop timer 
+    [ ] set logging to info only when hpa is making changes
+    [ ] there is a null error in the log
+     
