@@ -40,6 +40,7 @@ func CreateScalingDecisionService(log logr.Logger) ScalingDecisionService {
 			log: log,
 		}
 	} else {
+		log.Info("***** NO Environment var called: DECISION_SERVICE_ENDPOINT *******")
 		return nil
 	}
 }
