@@ -141,7 +141,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
 		updated, _ := r.UpdateHpaMin(hpaTuner, hpa, scalingTarget)
 		if updated {
-			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("Locked Min to %v", scalingTarget))
+			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("SET Min to %v", scalingTarget))
 		}
 	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
 		if canCoolDownHpaMin(hpaTuner, hpa, decisionServiceDesired) {
@@ -154,7 +154,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 
 				updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
 				if updated {
-					r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("Locked Min to %v", downscaleTarget))
+					r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("SET Min to %v", downscaleTarget))
 				}
 			}
 		} else {
