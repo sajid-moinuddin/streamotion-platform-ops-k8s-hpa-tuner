@@ -137,7 +137,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			//})
 		})
 
-		It("WIP: T3: Test lower min while load taking place", func() {
+		It("T3: Test lower min while load taking place", func() {
 			logger.Println("----------------start test-----------")
 			firstDecision := int32(15)
 			fakeDecisionService.FakeDecision.MinReplicas = firstDecision
@@ -207,7 +207,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 
 		})
 
-		It("WIP: Test HpaMin Is changed and locked with desired", func() {
+		It("T4: Test HpaMin Is changed and locked with desired", func() {
 			logger.Println("----------------start test-----------")
 
 			toCreateHpa := generateHpa()
