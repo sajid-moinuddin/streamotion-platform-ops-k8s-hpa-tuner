@@ -274,6 +274,7 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(
 			Expect(err).Should(BeNil())
 
 			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v", testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas)
+			log.Printf("--[%v]-- status: %v", testname, fetchedHpa.Status)
 
 			return condition(&fetchedHpa)
 		}, eventuallyTimeOut, interval).Should(BeTrue())
