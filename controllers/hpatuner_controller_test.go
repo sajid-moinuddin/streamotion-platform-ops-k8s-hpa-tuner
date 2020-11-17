@@ -273,7 +273,13 @@ func verifierCurry(name types.NamespacedName, optTimeout ...time.Duration) func(
 			err := k8sClient.Get(ctx, name, &fetchedHpa)
 			Expect(err).Should(BeNil())
 
-			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v/cpu:%v", testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas, *fetchedHpa.Status.CurrentCPUUtilizationPercentage)
+			var cpuUse = int32(0)
+
+			if fetchedHpa.Status.CurrentCPUUtilizationPercentage != nil {
+				cpuUse = *fetchedHpa.Status.CurrentCPUUtilizationPercentage
+			}
+
+			log.Printf("--[%v]-- hpa for assertion:  currentMin:%v/currentDesired:%v/currentReplica:%v/cpu:%v", testname, fetchedHpa.Status.CurrentReplicas, fetchedHpa.Status.DesiredReplicas, fetchedHpa.Status.CurrentReplicas, cpuUse)
 
 			return condition(&fetchedHpa)
 		}, eventuallyTimeOut, interval).Should(BeTrue())
