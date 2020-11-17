@@ -166,7 +166,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 				return fetchedLoadGeneratorPod.Status.ContainerStatuses != nil && fetchedLoadGeneratorPod.Status.ContainerStatuses[0].Ready == true
 			}, timeout, interval).Should(BeTrue())
 
-			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name}, timeout)
+			hpaVerifier := verifierCurry(types.NamespacedName{Namespace: toCreateHpa.Namespace, Name: toCreateHpa.Name}, timeout * 3)
 
 			//TODO: this seems to fail randomly on the docker in docker POD hence made this test status WIP
 			hpaVerifier(fmt.Sprintf("ensure cpu utilization goes over %v", 5), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //ensure hpa goes all the way up
@@ -199,7 +199,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 				return *fetchedHpa.Spec.MinReplicas == secondDecision
 			})
 
-			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas, timeout  * 3),
+			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas),
 				func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				hpaMinReduced := *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
 				hpaCurrentReplicasReduced := autoscaler.Status.CurrentReplicas < toCreateTuner.Spec.MaxReplicas
