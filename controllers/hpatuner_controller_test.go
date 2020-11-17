@@ -137,7 +137,7 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 			//})
 		})
 
-		It("T3: Test lower min while load taking place", func() {
+		It("T3: Test min should not be lowered when load is taking place", func() {
 			logger.Println("----------------start test-----------")
 			firstDecision := int32(15)
 			fakeDecisionService.FakeDecision.MinReplicas = firstDecision
@@ -199,7 +199,8 @@ var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 				return *fetchedHpa.Spec.MinReplicas == secondDecision
 			})
 
-			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas), func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
+			hpaVerifier(fmt.Sprintf("ensure min replica comes down to %v", toCreateTuner.Spec.MinReplicas, timeout  * 3),
+				func(autoscaler *scaleV1.HorizontalPodAutoscaler) bool { //it should come down when no load eventually
 				hpaMinReduced := *autoscaler.Spec.MinReplicas == toCreateTuner.Spec.MinReplicas
 				hpaCurrentReplicasReduced := autoscaler.Status.CurrentReplicas < toCreateTuner.Spec.MaxReplicas
 				return hpaMinReduced && hpaCurrentReplicasReduced
