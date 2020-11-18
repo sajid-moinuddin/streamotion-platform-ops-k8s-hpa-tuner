@@ -59,6 +59,10 @@ pipeline {
                 failure {
                     //kill the docker engine
                     sh "echo FAILED!!! Pls see POD logs"
+                    sh "kubectl get po -n phpload"
+                    sh "kubectl get hpa -o yaml -n phpload"
+                    sh "kubectl get hpatuner -o yaml -n phpload"
+
                     sh "sleep 600"
 //                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }

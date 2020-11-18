@@ -81,7 +81,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
 
-	log.Info("********************* START RECONCILE **********************") // to have clear separation between previous and current reconcile run
+	log.Info("********************* START RECONCILE **********************")          // to have clear separation between previous and current reconcile run
 	defer log.Info("********************* FINISHED RECONCILE **********************") // to have clear separation between previous and current reconcile run
 
 	// your logic here
@@ -130,7 +130,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log.WithValues("hpatuner", hpaTuner.Name)
 
-	log.Info("**** Rconcile........", "hpa: " , toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
+	log.Info("**** Rconcile........", "hpa: ", toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
 
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
@@ -233,14 +233,15 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 		lastDownscaled = *tuner.Status.LastDownScaleTime
 	}
 
-	r.Log.V(1).Info("Checking if recently downscaled: ", "upscaleForbiddenWindow", upscaleForbiddenWindow, "lastDownscaleTime", lastDownscaled)
-
+	elapsed := false
 	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
 		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
-		return true
+		elapsed = true
 	}
 
-	return false
+	r.Log.V(1).Info("Checking if recently downscaled: ", "upscaleForbiddenWindow", upscaleForbiddenWindow, "lastDownscaleTime", lastDownscaled, "recentlyDownScaled? ", elapsed)
+
+	return elapsed
 }
 
 func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, newMin int32) (updated bool, err error) {
