@@ -51,7 +51,8 @@ pipeline {
                     sh "sleep 10"
                     sh "kubectl get po -A"
                     sh "kind get clusters"
-                    sh 'make kind-tests'
+                    sh 'make kind-tests | sleep 6000'
+
                 }
             }
             post {
@@ -63,7 +64,7 @@ pipeline {
                     sh "kubectl get hpa -o yaml -n phpload"
                     sh "kubectl get hpatuner -o yaml -n phpload"
 
-                    sh "sleep 600"
+                    sh "sleep 6000"
 //                    sh 'kill -SIGTERM "$(pgrep dockerd)" || echo "dockerd not running"'
                 }
 
