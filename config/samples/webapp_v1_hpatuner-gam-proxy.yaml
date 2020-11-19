@@ -1,0 +1,13 @@
+apiVersion: webapp.streamotion.com.au/v1
+kind: HpaTuner
+metadata:
+  name: hpatuner-content-streamotion-platform-kayo-gam-proxy
+  namespace: content
+spec:
+  downscaleForbiddenWindowSeconds: 600
+  scaleTargetRef:
+    kind: HorizontalPodAutoscaler
+    name: content-streamotion-platform-kayo-gam-proxy
+  minReplicas: 50
+  maxReplicas: 1000
+  useDecisionService: true
