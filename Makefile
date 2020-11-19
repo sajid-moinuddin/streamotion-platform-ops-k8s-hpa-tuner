@@ -77,6 +77,10 @@ kind-tests:
 #	ginkgo -v --skip="LONG TEST:" --nodes 6 --race --randomizeAllSpecs --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 	ginkgo -v --skip="WIP:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
 
+kind-tests-local:
+	ginkgo -v --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
+
+
 #Start your test with It("WIP:... and only that will be executed
 focus-test:
 	ginkgo -v -focus="T6:" --cover --trace --progress --coverprofile ../controllers.coverprofile ./controllers
