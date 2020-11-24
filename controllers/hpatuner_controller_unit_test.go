@@ -69,7 +69,7 @@ func TestReconcileWithDecisionService(t *testing.T) {
 				t.Errorf("Expected %v Min replica but got %v", tc.currentCount, *currentHpa.Spec.MinReplicas)
 			}
 
-			request := reconcile.Request{types.NamespacedName{Namespace: namespace, Name: sname}}
+			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: namespace, Name: sname}}
 			_, err := reconciler.Reconcile(request)
 
 			if err != nil {
