@@ -48,7 +48,7 @@ func CreateScalingDecisionService(log logr.Logger) ScalingDecisionService {
 type HttpScalingDecisionService struct {
 	decisionServiceEndpoint string
 	Client                  *http.Client
-	log						logr.Logger
+	log                     logr.Logger
 }
 
 type DecisionServiceResponse struct {
@@ -60,7 +60,7 @@ type DecisionServiceResponse struct {
 //TODO: the following works but verify this is the best way to do rest calls in GO
 func (s HttpScalingDecisionService) scalingDecision(name string, min int32, current int32) (*ScalingDecision, error) {
 	log := s.log.WithValues("name", name)
-	log.V(5).Info("get scalingDecision", "name",name, "min", min, "current", current)
+	log.V(5).Info("get scalingDecision", "name", name, "min", min, "current", current)
 
 	//curl -X GET "http://localhost:8080/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa&current-min=10&current-instance-count=5" -H "accept: application/json"
 	req, _ := http.NewRequest("GET", s.decisionServiceEndpoint+"/api/HorizontalPodAutoscaler", nil)
@@ -72,7 +72,7 @@ func (s HttpScalingDecisionService) scalingDecision(name string, min int32, curr
 
 	req.URL.RawQuery = q.Encode()
 	req.Header.Add("Content-Type", "application/json")
-	log.V(5).Info("Encoded", "url",  req.URL.RawQuery)
+	log.V(5).Info("Encoded", "url", req.URL.RawQuery)
 
 	response, err := s.Client.Do(req)
 

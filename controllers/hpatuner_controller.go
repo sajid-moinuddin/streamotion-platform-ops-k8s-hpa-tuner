@@ -80,10 +80,8 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	resRepeat := reconcile.Result{RequeueAfter: r.syncPeriod}
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
-
 	log.Info("********************* START RECONCILE **********************")          // to have clear separation between previous and current reconcile run
 	defer log.Info("********************* FINISHED RECONCILE **********************") // to have clear separation between previous and current reconcile run
-
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
 	if err := r.Get(ctx, req.NamespacedName, &hpaTuner); err != nil {
@@ -199,10 +197,11 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	currentHpaMin := *hpa.Spec.MinReplicas
 	actualMin := tuner.Spec.MinReplicas
 
-	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
+	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the hpa.desiredCounts
 
 		if currentHpaMin < decisionServiceDesired {
-			r.Log.V(1).Info("Not skipping upscale check...",
+			r.Log.V(1).Info("respect decisionService Decision of ",
+				"decisionServiceDesired", decisionServiceDesired,
 				"hpa", toString(hpa),
 				"lastDownscaled", tuner.Status.LastDownScaleTime)
 			return true, decisionServiceDesired
@@ -229,13 +228,15 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 
 	var lastDownscaled metav1.Time
 
-	if tuner.Status.LastDownScaleTime != nil {
-		lastDownscaled = *tuner.Status.LastDownScaleTime
+	if tuner.Status.LastDownScaleTime == nil {
+		r.Log.V(1).Info("hpa never did any downscale operation: ", "tuner: ", toStringTuner(*tuner))
+
+		return false
 	}
 
 	elapsed := false
-	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
-		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
+	if tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
+		//dont try to scale hpa min if you scaled it down recently , let k8s to cool down the hpa before you make another scaling decision
 		elapsed = true
 	}
 
@@ -249,7 +250,10 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	oldMin := *hpa.Spec.MinReplicas
 
 	if oldMin == newMin { //must be some upstream calculation issue
+		r.Log.Info("NOTHING TO DO: ", "oldmin", oldMin, "newMin", newMin)
 		return false, nil
+	} else {
+		r.Log.Info("GOING TO UPDATE HPA ", "oldmin", oldMin, "newMin", newMin)
 	}
 
 	hpa.Spec.MinReplicas = &newMin
@@ -262,10 +266,10 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	} else {
 		hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
 	}
-	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
 	if err := r.Client.Update(context.TODO(), hpaTuner); err != nil {
 		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "newMin", newMin)
+		return false, err
 	}
 
 	return true, nil

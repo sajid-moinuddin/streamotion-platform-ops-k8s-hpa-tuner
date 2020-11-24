@@ -8,10 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
 	//. "github.com/onsi/gomega"
 )
-
 
 var _ = Describe("ScalingDecisionService", func() {
 	log := zap.New(zap.UseDevMode(true))
@@ -34,7 +32,6 @@ var _ = Describe("ScalingDecisionService", func() {
 			os.Setenv("DECISION_SERVICE_ENDPOINT", ts.URL+"/api/HorizontalPodAutoscaler?name=hpa-martian-content-qa")
 
 			//os.Setenv("DECISION_SERVICE_ENDPOINT", "http://localhost:8080")
-
 
 			decisionService := CreateScalingDecisionService(log)
 
