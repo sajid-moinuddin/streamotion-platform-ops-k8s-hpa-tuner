@@ -369,7 +369,10 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: evtNamespacer.Events("")})
 	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "hpa-tuner"})
 
-	r.syncPeriod = defaultSyncPeriod
+	if r.syncPeriod == 0 {
+		r.syncPeriod = defaultSyncPeriod
+	}
+
 	r.clientSet = clientSet
 	r.eventRecorder = recorder
 	r.k8sHpaDownScaleTime = time.Minute * 30

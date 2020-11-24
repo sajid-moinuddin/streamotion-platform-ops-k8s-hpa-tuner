@@ -19,9 +19,10 @@ package main
 import (
 	"errors"
 	"flag"
+	"go.uber.org/zap/zapcore"
 	"os"
 	"strconv"
-
+	uberzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -54,7 +55,13 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	atomicLevel2 := uberzap.NewAtomicLevel()
+	atomicLevel2.SetLevel(zapcore.DebugLevel)
+
+	useDevMode := zap.UseDevMode(false)
+	controllerRuntimeZapLogger := zap.New(useDevMode, level)
+
+	ctrl.SetLogger(controllerRuntimeZapLogger)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -85,6 +92,11 @@ func main() {
 	}
 }
 
+func level(options *zap.Options) {
+	levelAt := uberzap.NewAtomicLevelAt(10)
+	options.Level = levelAt
+}
+
 var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
 
 func getenvStr(key string) (string, error) {
@@ -103,6 +115,18 @@ func getenvInt(key string) (int, error) {
 	v, err := strconv.Atoi(s)
 	if err != nil {
 		return 0, err
+	}
+	return v, nil
+}
+
+func getenvBool(key string) (bool, error) {
+	s, err := getenvStr(key)
+	if err != nil {
+		return false, err
+	}
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return false, err
 	}
 	return v, nil
 }
