@@ -235,7 +235,7 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 
 	elapsed := false
 	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
-		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
+		//dont try to scale hpa min if you scaled it down recently , let k8s to cool down the hpa before you make another scaling decision
 		elapsed = true
 	}
 

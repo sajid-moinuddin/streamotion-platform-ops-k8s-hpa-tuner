@@ -17,8 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
+	zap2 "go.uber.org/zap"
 	"os"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -52,7 +55,10 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	label := zap2.NewAtomicLevel()
+	label.SetLevel(0)
+	logger := zap.New(zap.UseDevMode(true), zap.Level(&label))
+	ctrl.SetLogger(logger)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -81,4 +87,26 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
+
+func getenvStr(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return v, ErrEnvVarEmpty
+	}
+	return v, nil
+}
+
+func getenvInt(key string) (int, error) {
+	s, err := getenvStr(key)
+	if err != nil {
+		return 0, err
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return v, nil
 }
