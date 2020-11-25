@@ -19,15 +19,14 @@ package main
 import (
 	"errors"
 	"flag"
-	"go.uber.org/zap/zapcore"
-	"os"
-	"strconv"
 	uberzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"strconv"
 
 	webappv1 "hpa-tuner/api/v1"
 	"hpa-tuner/controllers"
@@ -55,10 +54,9 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	atomicLevel2 := uberzap.NewAtomicLevel()
-	atomicLevel2.SetLevel(zapcore.DebugLevel)
-
-	useDevMode := zap.UseDevMode(false)
+	useDevMode := zap.UseDevMode(true)
+	at := uberzap.NewAtomicLevelAt(uberzap.DebugLevel)
+	level := zap.Level(&at)
 	controllerRuntimeZapLogger := zap.New(useDevMode, level)
 
 	ctrl.SetLogger(controllerRuntimeZapLogger)
@@ -92,10 +90,10 @@ func main() {
 	}
 }
 
-func level(options *zap.Options) {
-	levelAt := uberzap.NewAtomicLevelAt(10)
-	options.Level = levelAt
-}
+//func level(options *zap.Options) {
+//	levelAt := uberzap.NewAtomicLevelAt(10)
+//	options.Level = &levelAt
+//}
 
 var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
 
