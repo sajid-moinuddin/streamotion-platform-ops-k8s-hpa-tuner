@@ -80,10 +80,9 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	resRepeat := reconcile.Result{RequeueAfter: r.syncPeriod}
 	// resStop will be returned in case if we found some problem that can't be fixed, and we want to stop repeating reconcile process
 	resStop := reconcile.Result{}
+	log.V(1).Info("********************* START RECONCILE **********************") // to have clear separation between previous and current reconcile run
 
-	log.Info("********************* START RECONCILE **********************")          // to have clear separation between previous and current reconcile run
-	defer log.Info("********************* FINISHED RECONCILE **********************") // to have clear separation between previous and current reconcile run
-
+	defer log.V(1).Info("********************* FINISHED RECONCILE **********************") // to have clear separation between previous and current reconcile run
 	// your logic here
 	var hpaTuner webappv1.HpaTuner
 	if err := r.Get(ctx, req.NamespacedName, &hpaTuner); err != nil {
@@ -93,7 +92,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// on deleted requests.
 		return resStop, client.IgnoreNotFound(err)
 	}
-	log.Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
+	log.V(1).Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
 
 	//TODO: check validity of hpaTuner
 
@@ -116,8 +115,8 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return resStop, nil
 	}
 	// -----------------------------------------------------------------------------------
-	log.Info("") // to have clear separation between previous and current reconcile run
-	log.Info("--end: ----------------------------------------------------------------------------------------------------")
+	log.V(1).Info("") // to have clear separation between previous and current reconcile run
+	log.V(1).Info("--end: ----------------------------------------------------------------------------------------------------")
 
 	// resRepeat will be returned if we want to re-run reconcile process
 	// NB: we can't return non-nil err, as the "reconcile" msg will be added to the rate-limited queue
@@ -130,17 +129,19 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) (err error) {
 	log := r.Log.WithValues("hpatuner", hpaTuner.Name)
 
-	log.Info("**** Rconcile........", "hpa: ", toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
+	log.V(1).Info("**** Rconcile........", "hpa: ", toString(hpa), ", tuner: ", toStringTuner(*hpaTuner))
 
 	decisionServiceDesired := r.getDesiredReplicaFromDecisionService(hpaTuner, hpa)
 	needsScaling, scalingTarget := r.determineScalingNeeds(hpaTuner, hpa, decisionServiceDesired)
 
-	log.Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
+	log.V(1).Info("***Reconcile: ", "hpa", toString(hpa), "tuner: ", toStringTuner(*hpaTuner), "useDecision", hpaTuner.Spec.UseDecisionService, "decisionServiceDesired", decisionServiceDesired, "needsScaling: ", needsScaling, "scalingTarget", scalingTarget)
 
 	if needsScaling {
 		log.Info(fmt.Sprintf("*** I am going to lock the hpa min now... %v", scalingTarget)) //debug
 		updated, _ := r.UpdateHpaMin(hpaTuner, hpa, scalingTarget)
 		if updated {
+			log.Info("SuccessfulUpscaleMin", "scalingTarget", scalingTarget)
+
 			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("SET Min to %v", scalingTarget))
 		}
 	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
@@ -148,12 +149,13 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 			downscaleTarget := max(hpaTuner.Spec.MinReplicas, decisionServiceDesired)
 
 			if downscaleTarget == *hpa.Spec.MinReplicas {
-				log.V(2).Info("no action needed")
+				log.V(1).Info("no action needed")
 			} else {
 				log.Info("Need to UnlockMin")
 
 				updated, _ := r.UpdateHpaMin(hpaTuner, hpa, downscaleTarget) //decision service always wins
 				if updated {
+					log.Info("SuccessfulDownscaleMin", "downscaleTarget", downscaleTarget)
 					r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulDownscaleMin", fmt.Sprintf("SET Min to %v", downscaleTarget))
 				}
 			}
@@ -188,7 +190,7 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
 	} else {
-		r.Log.Info("Not using decision service") //todo: debug
+		r.Log.V(1).Info("Not using decision service") //todo: debug
 	}
 
 	return -1
@@ -199,10 +201,11 @@ func (r *HpaTunerReconciler) determineScalingNeeds(tuner *webappv1.HpaTuner, hpa
 	currentHpaMin := *hpa.Spec.MinReplicas
 	actualMin := tuner.Spec.MinReplicas
 
-	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the desired counts
+	if r.recentlyDownScaled(tuner) { //if recently downscaled, ignore the hpa.desiredCounts
 
 		if currentHpaMin < decisionServiceDesired {
-			r.Log.V(1).Info("Not skipping upscale check...",
+			r.Log.V(1).Info("respect decisionService Decision of ",
+				"decisionServiceDesired", decisionServiceDesired,
 				"hpa", toString(hpa),
 				"lastDownscaled", tuner.Status.LastDownScaleTime)
 			return true, decisionServiceDesired
@@ -229,13 +232,15 @@ func (r *HpaTunerReconciler) recentlyDownScaled(tuner *webappv1.HpaTuner) bool {
 
 	var lastDownscaled metav1.Time
 
-	if tuner.Status.LastDownScaleTime != nil {
-		lastDownscaled = *tuner.Status.LastDownScaleTime
+	if tuner.Status.LastDownScaleTime == nil {
+		r.Log.V(1).Info("hpa never did any downscale operation: ", "tuner: ", toStringTuner(*tuner))
+
+		return false
 	}
 
 	elapsed := false
-	if tuner.Status.LastDownScaleTime != nil && tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
-		//dont try to scale hpa min if you scaled it recently , let k8s to cool down the hpa before you make another scaling decision
+	if tuner.Status.LastDownScaleTime.Add(upscaleForbiddenWindow).After(time.Now()) {
+		//dont try to scale hpa min if you scaled it down recently , let k8s to cool down the hpa before you make another scaling decision
 		elapsed = true
 	}
 
@@ -249,7 +254,10 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	oldMin := *hpa.Spec.MinReplicas
 
 	if oldMin == newMin { //must be some upstream calculation issue
+		r.Log.Info("NOTHING TO DO: ", "oldmin", oldMin, "newMin", newMin)
 		return false, nil
+	} else {
+		r.Log.Info("GOING TO UPDATE HPA ", "oldmin", oldMin, "newMin", newMin)
 	}
 
 	hpa.Spec.MinReplicas = &newMin
@@ -262,10 +270,10 @@ func (r *HpaTunerReconciler) UpdateHpaMin(hpaTuner *webappv1.HpaTuner, hpa *scal
 	} else {
 		hpaTuner.Status.LastUpScaleTime = &metav1.Time{Time: time.Now()}
 	}
-	//hpaTuner.Status.LastUpScaleTime.Time = time.Now() //TODO: put in constructor
 
 	if err := r.Client.Update(context.TODO(), hpaTuner); err != nil {
 		r.Log.Error(err, "Failed to Update hpaTuner LastUpScaleTime", "newMin", newMin)
+		return false, err
 	}
 
 	return true, nil
@@ -343,7 +351,11 @@ func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
 
 func elapsedDownscaleForbiddenWindow(hpa *scaleV1.HorizontalPodAutoscaler, tuner *webappv1.HpaTuner) bool {
 	downscaleForbiddenWindow := time.Duration(tuner.Spec.DownscaleForbiddenWindowSeconds) * time.Second
-	return tuner.Status.LastUpScaleTime != nil && tuner.Status.LastUpScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
+
+	if tuner.Status.LastUpScaleTime == nil {
+		return true //it was never downscaled
+	}
+	return tuner.Status.LastUpScaleTime.Add(downscaleForbiddenWindow).Before(time.Now())
 }
 
 func isHpaMinAlreadyInScaledState(hpaTuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler) bool {
@@ -365,7 +377,10 @@ func (r *HpaTunerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: evtNamespacer.Events("")})
 	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "hpa-tuner"})
 
-	r.syncPeriod = defaultSyncPeriod
+	if r.syncPeriod == 0 {
+		r.syncPeriod = defaultSyncPeriod
+	}
+
 	r.clientSet = clientSet
 	r.eventRecorder = recorder
 	r.k8sHpaDownScaleTime = time.Minute * 30

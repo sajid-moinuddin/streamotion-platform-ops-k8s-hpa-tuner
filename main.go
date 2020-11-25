@@ -17,14 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
-	"os"
-
+	uberzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"strconv"
 
 	webappv1 "hpa-tuner/api/v1"
 	"hpa-tuner/controllers"
@@ -52,7 +54,19 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	_debugLevel, _ := getenvBool("DEBUG_LOGGING")
+	_devMode, _ := getenvBool("USE_DEV_MODE")
+	useDevMode := zap.UseDevMode(_devMode)
+
+	at := uberzap.NewAtomicLevelAt(uberzap.InfoLevel)
+	if _debugLevel {
+		at = uberzap.NewAtomicLevelAt(uberzap.DebugLevel)
+	}
+
+	level := zap.Level(&at)
+	controllerRuntimeZapLogger := zap.New(useDevMode, level)
+
+	ctrl.SetLogger(controllerRuntimeZapLogger)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -81,4 +95,43 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+//func level(options *zap.Options) {
+//	levelAt := uberzap.NewAtomicLevelAt(10)
+//	options.Level = &levelAt
+//}
+
+var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
+
+func getenvStr(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return v, ErrEnvVarEmpty
+	}
+	return v, nil
+}
+
+func getenvInt(key string) (int, error) {
+	s, err := getenvStr(key)
+	if err != nil {
+		return 0, err
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return v, nil
+}
+
+func getenvBool(key string) (bool, error) {
+	s, err := getenvStr(key)
+	if err != nil {
+		return false, err
+	}
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return false, err
+	}
+	return v, nil
 }
