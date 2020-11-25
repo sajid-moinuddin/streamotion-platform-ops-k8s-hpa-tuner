@@ -92,7 +92,7 @@ func (r *HpaTunerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// on deleted requests.
 		return resStop, client.IgnoreNotFound(err)
 	}
-	log.Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
+	log.V(1).Info(fmt.Sprintf("##: fetched %v \n", req.NamespacedName))
 
 	//TODO: check validity of hpaTuner
 
@@ -190,7 +190,7 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
 	} else {
-		r.Log.Info("Not using decision service") //todo: debug
+		r.Log.V(1).Info("Not using decision service") //todo: debug
 	}
 
 	return -1

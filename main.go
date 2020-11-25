@@ -54,8 +54,15 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	useDevMode := zap.UseDevMode(true)
-	at := uberzap.NewAtomicLevelAt(uberzap.DebugLevel)
+	_debugLevel, _ := getenvBool("DEBUG_LOGGING")
+	_devMode, _ := getenvBool("USE_DEV_MODE")
+	useDevMode := zap.UseDevMode(_devMode)
+
+	at := uberzap.NewAtomicLevelAt(uberzap.InfoLevel)
+	if _debugLevel {
+		at = uberzap.NewAtomicLevelAt(uberzap.DebugLevel)
+	}
+
 	level := zap.Level(&at)
 	controllerRuntimeZapLogger := zap.New(useDevMode, level)
 
