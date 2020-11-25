@@ -187,7 +187,7 @@ func (r *HpaTunerReconciler) getDesiredReplicaFromDecisionService(tuner *webappv
 			return -1
 		}
 
-		r.Log.Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
+		r.Log.V(1).Info("Received From Decision Service: ", "minReplica: ", decision.MinReplicas)
 		return decision.MinReplicas
 	} else {
 		r.Log.V(1).Info("Not using decision service") //todo: debug
