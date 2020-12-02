@@ -145,7 +145,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 			r.eventRecorder.Event(hpaTuner, v1.EventTypeNormal, "SuccessfulUpscaleMin", fmt.Sprintf("SET Min to %v", scalingTarget))
 		}
 	} else if isHpaMinAlreadyInScaledState(hpaTuner, hpa) {
-		if canCoolDownHpaMin(hpaTuner, hpa, decisionServiceDesired) {
+		if r.canCoolDownHpaMin(hpaTuner, hpa, decisionServiceDesired) {
 			downscaleTarget := max(hpaTuner.Spec.MinReplicas, decisionServiceDesired)
 
 			if downscaleTarget == *hpa.Spec.MinReplicas {
@@ -160,7 +160,7 @@ func (r *HpaTunerReconciler) ReconcileHPA(hpaTuner *webappv1.HpaTuner, hpa *scal
 				}
 			}
 		} else {
-			log.Info("----hpa locked but scaledown condition not met", "elapsed: ", elapsedDownscaleForbiddenWindow(hpa, hpaTuner), "isIdle: ", isIdle(hpa))
+			log.Info("----hpa locked but scaledown condition not met", "elapsed: ", elapsedDownscaleForbiddenWindow(hpa, hpaTuner), "isIdle: ", r.isIdle(hpa, hpaTuner))
 		}
 	} else {
 		log.V(1).Info("Nothing to do...")
@@ -328,10 +328,10 @@ func max(nums ...int32) int32 {
 	return max
 }
 
-func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) bool {
+func (r *HpaTunerReconciler) canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutoscaler, decisionServiceDesired int32) bool {
 	if elapsedDownscaleForbiddenWindow(hpa, tuner) {
 		//now I can consider letting it cooldown if idle
-		if isIdle(hpa) {
+		if r.isIdle(hpa, tuner) {
 			return true
 		}
 	}
@@ -339,10 +339,18 @@ func canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *scaleV1.HorizontalPodAutos
 	return false
 }
 
-func isIdle(hpa *scaleV1.HorizontalPodAutoscaler) bool {
+func (r *HpaTunerReconciler) isIdle(hpa *scaleV1.HorizontalPodAutoscaler, tuner *webappv1.HpaTuner) bool {
 
+	idlePercentage := *hpa.Spec.TargetCPUUtilizationPercentage / 2
 	//todo, optionally take the idle cpu from hpatunerConfig
-	if hpa.Status.CurrentCPUUtilizationPercentage == nil || *hpa.Status.CurrentCPUUtilizationPercentage < 5 {
+	if tuner.Spec.CPUIdlingPercentage != 0 {
+		r.Log.V(1).Info("Using idlePercentage configured in hpatuner", "CPUIdlingPercentage", tuner.Spec.CPUIdlingPercentage)
+		idlePercentage = tuner.Spec.CPUIdlingPercentage
+	} else {
+		r.Log.V(1).Info("Using idlePercentage calculated from hpa.TargetCPUUtilizationPercentage/2", "hpa.TargetCPUUtilizationPercentage/2", idlePercentage)
+	}
+
+	if hpa.Status.CurrentCPUUtilizationPercentage == nil || *hpa.Status.CurrentCPUUtilizationPercentage < idlePercentage {
 		return true
 	}
 
