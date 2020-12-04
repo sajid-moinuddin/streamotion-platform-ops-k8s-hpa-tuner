@@ -55,6 +55,11 @@ type HpaTunerSpec struct {
 	// +kubebuilder:validation:Maximum=1000
 	MaxReplicas int32 `json:"maxReplicas"`
 
+	// +kubebuilder:default := 0
+	// +kubebuilder:validation:Maximum=90
+	// if not specified, default value = hpa.averageUtilization/2
+	CPUIdlingPercentage int32 `json:"cpuIdlingPercentage,omitempty"`
+
 	// +kubebuilder:default := false
 	UseDecisionService bool `json:"useDecisionService"`
 }

@@ -34,6 +34,11 @@ spec:
         spec:
           description: HpaTunerSpec defines the desired state of HpaTuner
           properties:
+            cpuIdlingPercentage:
+              description: if not specified, default value = hpa.averageUtilization/2
+              format: int32
+              maximum: 90
+              type: integer
             downscaleForbiddenWindowSeconds:
               format: int32
               maximum: 6000

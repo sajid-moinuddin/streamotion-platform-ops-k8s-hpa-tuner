@@ -5,6 +5,7 @@ metadata:
   namespace: phpload
 spec:
   downscaleForbiddenWindowSeconds: 60
+  cpuIdlingPercentage: 5
   scaleTargetRef:
     kind: HorizontalPodAutoscaler
     name: php-apache

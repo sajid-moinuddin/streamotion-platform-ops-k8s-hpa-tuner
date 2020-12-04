@@ -22,6 +22,8 @@ import (
 const timeout = time.Second * 60 * 5
 const interval = time.Second * 2
 
+//TODO: add testcase for idlePercentage coming from hpa
+
 var _ = Describe("HpatunerController Tests - Happy Paths", func() {
 	logger := log.New(GinkgoWriter, "INFO: ", log.Lshortfile)
 	ctx := context.Background()
@@ -364,9 +366,10 @@ func generateHpaTuner() webappv1.HpaTuner {
 			Kind: "HorizontalPodAutoscaler",
 			Name: "php-apache",
 		},
-		MinReplicas:        5,
-		MaxReplicas:        1000,
-		UseDecisionService: false,
+		MinReplicas:         5,
+		MaxReplicas:         1000,
+		UseDecisionService:  false,
+		CPUIdlingPercentage: 5,
 	}
 
 	tuner := webappv1.HpaTuner{
