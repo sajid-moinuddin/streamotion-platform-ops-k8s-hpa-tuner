@@ -341,7 +341,7 @@ func (r *HpaTunerReconciler) canCoolDownHpaMin(tuner *webappv1.HpaTuner, hpa *sc
 
 func (r *HpaTunerReconciler) isIdle(hpa *scaleV1.HorizontalPodAutoscaler, tuner *webappv1.HpaTuner) bool {
 
-	idlePercentage := *hpa.Spec.TargetCPUUtilizationPercentage / 2
+	idlePercentage := *hpa.Spec.TargetCPUUtilizationPercentage / 3
 	//todo, optionally take the idle cpu from hpatunerConfig
 	if tuner.Spec.CPUIdlingPercentage != 0 {
 		r.Log.V(1).Info("Using idlePercentage configured in hpatuner", "CPUIdlingPercentage", tuner.Spec.CPUIdlingPercentage)
