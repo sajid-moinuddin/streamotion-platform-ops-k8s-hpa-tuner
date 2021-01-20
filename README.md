@@ -101,7 +101,8 @@ The CRD is generated from the `hpatuner_types.go`, if you change it, re-run make
     https://sdk.operatorframework.io/docs/golang/references/client/
 
 TODO:
+- [ ] CIRITICAL: Load generation in kind docker-in-docker within k8s jenkins-x pods are not working (hence jenkins not running all tests) and we need to run ALL tests locally `make kind-tests-local`, the docker-in-docker -> kind -> tests should run all tests in jenkins-x k8s cluster
 - [ ] paramaterize reconcile loop timer 
 - [ ] set logging to info only when hpa is making changes
-- [ ] there is a null error in the log
+- [X] there is a null error in the log
      
