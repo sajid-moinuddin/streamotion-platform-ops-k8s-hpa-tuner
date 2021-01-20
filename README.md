@@ -101,7 +101,7 @@ The CRD is generated from the `hpatuner_types.go`, if you change it, re-run make
     https://sdk.operatorframework.io/docs/golang/references/client/
 
 TODO:
-    [ ] paramaterize reconcile loop timer 
-    [ ] set logging to info only when hpa is making changes
-    [ ] there is a null error in the log
+- [ ] paramaterize reconcile loop timer 
+- [ ] set logging to info only when hpa is making changes
+- [ ] there is a null error in the log
      
