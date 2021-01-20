@@ -12,6 +12,7 @@ pipeline {
         stage('Unit-Test') {
             steps {
                 container('generic') {
+                    sleep 900
                     sh "make unit-tests"
                 }
             }
